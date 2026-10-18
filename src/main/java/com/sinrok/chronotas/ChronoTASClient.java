@@ -31,6 +31,7 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static final List<Frame> frames = new ArrayList<>();
     public static ChronoTASWorldState.Snapshot initialState;
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
+    private static final Map<String, ChronoTASWorldState.EntityState> knownEntities = new LinkedHashMap<>();
     private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f10WasDown, f11WasDown;
     private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF11WasDown;
 
@@ -120,7 +121,7 @@ public final class ChronoTASClient implements ClientModInitializer {
             return;
         }
         if (playing) stopPlayback(c, "Playback stopped.");
-        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear();
+        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear(); knownEntities.clear();
         initialState = ChronoTASWorldState.capture(c);
         recordingName = "run-" + System.currentTimeMillis(); recording = true;
         say(c, "Recording started with world snapshot. F6 again saves inputs + block changes.");
@@ -194,8 +195,21 @@ public final class ChronoTASClient implements ClientModInitializer {
         for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) f.hotbar[i] = c.options.hotbarKeys[i].isPressed();
         f.yaw = c.player.getYaw(); f.pitch = c.player.getPitch();
         f.x = c.player.getX(); f.y = c.player.getY(); f.z = c.player.getZ();
-        f.entities = ChronoTASWorldState.captureEntities(c, 64); return f;
+        for (ChronoTASWorldState.EntityState current : ChronoTASWorldState.captureEntities(c, 64)) {
+            knownEntities.put(current.uuid, copyEntity(current));
+        }
+        f.entities = knownEntities.values().stream().map(ChronoTASClient::copyEntity).toList();
+        return f;
     }
+    private static ChronoTASWorldState.EntityState copyEntity(ChronoTASWorldState.EntityState source) {
+        ChronoTASWorldState.EntityState copy = new ChronoTASWorldState.EntityState();
+        copy.uuid = source.uuid; copy.type = source.type;
+        copy.x = source.x; copy.y = source.y; copy.z = source.z;
+        copy.vx = source.vx; copy.vy = source.vy; copy.vz = source.vz;
+        copy.yaw = source.yaw; copy.pitch = source.pitch; copy.health = source.health;
+        return copy;
+    }
+
     private static void release(MinecraftClient c) {
         set(c.options.forwardKey, false); set(c.options.backKey, false); set(c.options.leftKey, false);
         set(c.options.rightKey, false); set(c.options.jumpKey, false); set(c.options.sprintKey, false); set(c.options.sneakKey, false);
