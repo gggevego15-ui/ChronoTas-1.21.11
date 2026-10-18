@@ -1,6 +1,7 @@
 package com.sinrok.chronotas;
 
 import com.mojang.serialization.JsonOps;
+import net.minecraft.registry.RegistryOps;
 import com.google.gson.JsonParser;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
@@ -101,7 +102,7 @@ public final class ChronoTASWorldState {
         if (client.player == null) return result;
         for (int i = 0; i < client.player.getInventory().size(); i++) {
             try {
-                result.add(ChronoTASClient.GSON.toJson(ItemStack.CODEC.encodeStart(JsonOps.INSTANCE,
+                result.add(ChronoTASClient.GSON.toJson(ItemStack.CODEC.encodeStart(RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager()),
                         client.player.getInventory().getStack(i)).getOrThrow()));
             } catch (Exception e) {
                 result.add("{}");
@@ -116,7 +117,7 @@ public final class ChronoTASWorldState {
         int count = Math.min(playerInventory.size(), inventory.size());
         for (int i = 0; i < count; i++) {
             try {
-                ItemStack stack = ItemStack.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(inventory.get(i)))
+                ItemStack stack = ItemStack.CODEC.parse(RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager()), JsonParser.parseString(inventory.get(i)))
                         .result().orElse(ItemStack.EMPTY);
                 playerInventory.setStack(i, stack);
             } catch (Exception ignored) { }
