@@ -15,4 +15,9 @@ public abstract class WorldMixin {
     private void chronotas$recordBlockChange(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<Boolean> cir) {
         ChronoTASWorldState.recordBlockBeforeChange((World)(Object)this, pos);
     }
+    @Inject(method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Z", at = @At("RETURN"))
+    private void chronotas$captureBlockResult(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<Boolean> cir) {
+        ChronoTASWorldState.recordBlockAfterChange((World)(Object)this, pos, cir.getReturnValueZ());
+    }
+
 }
