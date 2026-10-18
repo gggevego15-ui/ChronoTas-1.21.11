@@ -35,6 +35,7 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
     private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f8WasDown, f9WasDown, f10WasDown, f11WasDown;
     private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF11WasDown;
+    private static int frameToCorrect = -1;
 
     @Override public void onInitializeClient() {
         try { Files.createDirectories(RECORDINGS); Files.createDirectories(STATES); } catch (IOException e) { e.printStackTrace(); }
@@ -111,8 +112,11 @@ public final class ChronoTASClient implements ClientModInitializer {
         f8WasDown = f8; f9WasDown = f9; f10WasDown = f10; f11WasDown = f11;
         if (playing && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
-            else if (!paused) apply(c, frames.get(playbackIndex));
-            else if (stepTicks > 0) {
+            else if (!paused) {
+                frameToCorrect = playbackIndex;
+                apply(c, frames.get(playbackIndex));
+            } else if (stepTicks > 0) {
+                frameToCorrect = playbackIndex;
                 apply(c, frames.get(playbackIndex));
                 playbackIndex++;
                 stepTicks--;
@@ -122,7 +126,21 @@ public final class ChronoTASClient implements ClientModInitializer {
 
     private static void endTick(MinecraftClient c) {
         if (recording && c.player != null) frames.add(capture(c));
+        // Correct accumulated movement drift using the recorded post-tick transform.
+        if (playing && frameToCorrect >= 0 && frameToCorrect < frames.size()) {
+            correctRecordedState(c, frames.get(frameToCorrect));
+            frameToCorrect = -1;
+        }
         if (playing && !paused && !frames.isEmpty()) playbackIndex++;
+    }
+
+    private static void correctRecordedState(MinecraftClient c, Frame f) {
+        if (c.player == null) return;
+        c.player.setPosition(f.x, f.y, f.z);
+        c.player.setVelocity(f.playerVx, f.playerVy, f.playerVz);
+        c.player.setYaw(f.yaw);
+        c.player.setPitch(f.pitch);
+        ChronoTASWorldState.restoreEntities(c, f.entities);
     }
 
     public static void toggleRecording(MinecraftClient c) {
@@ -208,6 +226,9 @@ public final class ChronoTASClient implements ClientModInitializer {
         for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) f.hotbar[i] = c.options.hotbarKeys[i].isPressed();
         f.yaw = c.player.getYaw(); f.pitch = c.player.getPitch();
         f.x = c.player.getX(); f.y = c.player.getY(); f.z = c.player.getZ();
+        f.playerVx = c.player.getVelocity().x;
+        f.playerVy = c.player.getVelocity().y;
+        f.playerVz = c.player.getVelocity().z;
         // Store only entities present in this frame. Carrying every entity ever seen
         // forward made each frame grow indefinitely and could freeze/crash the client.
         f.entities = ChronoTASWorldState.captureEntities(c, 32);
@@ -297,5 +318,6 @@ public final class ChronoTASClient implements ClientModInitializer {
         public boolean[] hotbar = new boolean[9];
         public List<ChronoTASWorldState.EntityState> entities = new ArrayList<>();
         public float yaw, pitch; public double x, y, z;
+        public double playerVx, playerVy, playerVz;
     }
 }
