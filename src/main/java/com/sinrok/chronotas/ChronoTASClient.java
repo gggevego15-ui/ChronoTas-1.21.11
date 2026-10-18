@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.text.Text;
@@ -41,6 +42,8 @@ public final class ChronoTASClient implements ClientModInitializer {
     private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF12WasDown;
     private static int frameToCorrect = -1;
     public static final Map<String, String> currentTickBlockChanges = new LinkedHashMap<>();
+    public static final List<ScreenClick> currentTickScreenClicks = new ArrayList<>();
+    private static final Map<String, Boolean> previousActionStates = new LinkedHashMap<>();
 
     @Override public void onInitializeClient() {
         try { Files.createDirectories(RECORDINGS); Files.createDirectories(STATES); } catch (IOException e) { e.printStackTrace(); }
@@ -123,7 +126,6 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (playing && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
             else if (!paused) {
-                frameToCorrect = playbackIndex;
                 apply(c, frames.get(playbackIndex));
             } else if (stepTicks > 0) {
                 frameToCorrect = playbackIndex;
@@ -136,11 +138,8 @@ public final class ChronoTASClient implements ClientModInitializer {
 
     private static void endTick(MinecraftClient c) {
         if (recording && c.player != null) frames.add(capture(c));
-        // Correct accumulated movement drift using the recorded post-tick transform.
-        if (playing && frameToCorrect >= 0 && frameToCorrect < frames.size()) {
-            correctRecordedState(c, frames.get(frameToCorrect));
-            frameToCorrect = -1;
-        }
+        // Replay follows normal game simulation. Per-tick teleports and inventory rewrites fight server sync and hide animations.
+        frameToCorrect = -1;
         if (playing && !paused && !frames.isEmpty()) playbackIndex++;
     }
 
@@ -162,7 +161,7 @@ public final class ChronoTASClient implements ClientModInitializer {
             return;
         }
         if (playing) stopPlayback(c, "Playback stopped.");
-        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear(); currentTickBlockChanges.clear();
+        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear(); currentTickBlockChanges.clear(); currentTickScreenClicks.clear();
         initialState = ChronoTASWorldState.capture(c);
         recordingName = uniqueRecordingName(requestedRecordingName);
         requestedRecordingName = recordingName;
@@ -178,7 +177,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         String target = selectedReplay != null && names.contains(selectedReplay) ? selectedReplay : names.get(names.size() - 1);
         if (!load(target)) { say(c, "Could not load recording. File may be damaged."); return; }
         ChronoTASWorldState.restore(c, initialState, recordedBlockChanges);
-        playbackIndex = 0; playing = true; paused = false; speedAccumulator = 0;
+        playbackIndex = 0; playing = true; paused = false; speedAccumulator = 0; previousActionStates.clear();
         if (cinematicCamera) { previousPerspective = c.options.getPerspective(); c.options.setPerspective(Perspective.THIRD_PERSON_BACK); }
         say(c, "Restored initial snapshot; playing " + recordingName + ". F7 stops.");
     }
@@ -238,6 +237,17 @@ public final class ChronoTASClient implements ClientModInitializer {
     private static void set(KeyBinding k, boolean down) { k.setPressed(down); }
     private static void apply(MinecraftClient c, Frame f) {
         if (c.player == null) return;
+        queueActionEdge(c.options.attackKey, f.attack, "attack");
+        queueActionEdge(c.options.useKey, f.use, "use");
+        queueActionEdge(c.options.inventoryKey, f.inventoryKeyPressed, "inventory");
+        queueActionEdge(c.options.dropKey, f.drop, "drop");
+        queueActionEdge(c.options.pickItemKey, f.pickItem, "pick");
+        if (f.screenClicks != null && c.currentScreen instanceof HandledScreen<?> screen) {
+            for (ScreenClick click : f.screenClicks) {
+                try { screen.mouseClicked(click.x, click.y, click.button); }
+                catch (RuntimeException ignored) { }
+            }
+        }
         set(c.options.forwardKey, f.forward); set(c.options.backKey, f.back);
         set(c.options.leftKey, f.left); set(c.options.rightKey, f.right);
         set(c.options.jumpKey, f.jump); set(c.options.sprintKey, f.sprint); set(c.options.sneakKey, f.sneak);
@@ -245,7 +255,6 @@ public final class ChronoTASClient implements ClientModInitializer {
         set(c.options.pickItemKey, f.pickItem); set(c.options.dropKey, f.drop);
         set(c.options.inventoryKey, f.inventoryKeyPressed);
         for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) set(c.options.hotbarKeys[i], f.hotbar[i]);
-        ChronoTASWorldState.restoreEntities(c, f.entities);
         c.player.setYaw(f.yaw); c.player.setPitch(f.pitch);
     }
     private static Frame capture(MinecraftClient c) {
@@ -268,6 +277,8 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.selectedSlot = c.player.getInventory().getSelectedSlot();
         f.blockChanges = new LinkedHashMap<>(currentTickBlockChanges);
         currentTickBlockChanges.clear();
+        f.screenClicks = new ArrayList<>(currentTickScreenClicks);
+        currentTickScreenClicks.clear();
         // Store only entities present in this frame. Carrying every entity ever seen
         // forward made each frame grow indefinitely and could freeze/crash the client.
         f.entities = ChronoTASWorldState.captureEntities(c, 32);
@@ -345,6 +356,22 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (c.player != null) c.player.sendMessage(Text.literal("[ChronoTAS] " + s), false);
         else System.out.println("[ChronoTAS] " + s);
     }
+    public static void recordScreenClick(double x, double y, int button) {
+        if (recording && !ChronoTASWorldState.restoring) currentTickScreenClicks.add(new ScreenClick(x, y, button));
+    }
+    private static void queueActionEdge(KeyBinding binding, boolean down, String key) {
+        boolean previous = previousActionStates.getOrDefault(key, false);
+        if (down && !previous) {
+            try { KeyBinding.onKeyPressed(binding.getBoundKey()); } catch (RuntimeException ignored) { }
+        }
+        previousActionStates.put(key, down);
+    }
+    public static final class ScreenClick {
+        public double x, y;
+        public int button;
+        public ScreenClick() {}
+        public ScreenClick(double x, double y, int button) { this.x = x; this.y = y; this.button = button; }
+    }
     public static final class Recording {
         public String name, minecraftVersion;
         public List<Frame> frames = new ArrayList<>();
@@ -362,5 +389,6 @@ public final class ChronoTASClient implements ClientModInitializer {
         public int selectedSlot;
         public Map<String, String> blockChanges = new LinkedHashMap<>();
         public ChronoTASWorldState.PlayerState playerState = new ChronoTASWorldState.PlayerState();
+        public List<ScreenClick> screenClicks = new ArrayList<>();
     }
 }
