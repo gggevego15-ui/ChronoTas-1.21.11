@@ -22,7 +22,6 @@ import java.util.UUID;
 
 public final class ChronoTASWorldState {
     public static boolean restoring;
-    public static final Map<String, String> changedBlocks = new LinkedHashMap<>();
 
     private ChronoTASWorldState() {}
 
@@ -60,7 +59,7 @@ public final class ChronoTASWorldState {
         MinecraftClient client = MinecraftClient.getInstance();
         if (restoring || !ChronoTASClient.recording || client.world != world) return;
         String key = Long.toString(pos.asLong());
-        changedBlocks.putIfAbsent(key, encode(world.getBlockState(pos)));
+        ChronoTASClient.recordedBlockChanges.putIfAbsent(key, encode(world.getBlockState(pos)));
     }
 
     public static void restore(MinecraftClient client, Snapshot snapshot, Map<String, String> changed) {
