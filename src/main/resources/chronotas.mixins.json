@@ -2,6 +2,12 @@
   "required": true,
   "package": "com.sinrok.chronotas.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["MinecraftClientMixin", "WorldMixin"],
-  "injectors": { "defaultRequire": 1 }
+  "client": [
+    "MinecraftClientMixin",
+    "WorldMixin",
+    "CameraMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }
