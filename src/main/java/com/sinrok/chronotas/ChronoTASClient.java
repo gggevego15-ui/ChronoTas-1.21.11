@@ -153,6 +153,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         ChronoTASWorldState.restoreEntities(c, f.entities);
         ChronoTASWorldState.restoreFrameBlocks(c, f.blockChanges);
         ChronoTASWorldState.restoreInventory(c, f.inventory, f.selectedSlot);
+        ChronoTASWorldState.restorePlayerState(c, f.playerState);
     }
 
     public static void toggleRecording(MinecraftClient c) {
@@ -263,6 +264,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.playerVy = c.player.getVelocity().y;
         f.playerVz = c.player.getVelocity().z;
         f.inventory = ChronoTASWorldState.captureInventory(c);
+        f.playerState = ChronoTASWorldState.capturePlayerState(c);
         f.selectedSlot = c.player.getInventory().getSelectedSlot();
         f.blockChanges = new LinkedHashMap<>(currentTickBlockChanges);
         currentTickBlockChanges.clear();
@@ -359,5 +361,6 @@ public final class ChronoTASClient implements ClientModInitializer {
         public List<String> inventory = new ArrayList<>();
         public int selectedSlot;
         public Map<String, String> blockChanges = new LinkedHashMap<>();
+        public ChronoTASWorldState.PlayerState playerState = new ChronoTASWorldState.PlayerState();
     }
 }
