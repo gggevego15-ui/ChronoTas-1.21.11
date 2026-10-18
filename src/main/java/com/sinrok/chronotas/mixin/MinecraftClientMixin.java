@@ -1,43 +1,12 @@
 package com.sinrok.chronotas.mixin;
 
-import com.sinrok.chronotas.ChronoTASClient;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.client.util.Window;
-import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * Intentionally contains no tick-cancelling hooks.
+ * Cancelling MinecraftClient.tick freezes input handling and can make the TAS menu appear hung.
+ * TAS pause/step is handled safely by ChronoTASClient instead.
+ */
 @Mixin(net.minecraft.client.MinecraftClient.class)
 public abstract class MinecraftClientMixin {
-    @Shadow private Window window;
-    private boolean chronotas$f8WasDown;
-    private boolean chronotas$f9WasDown;
-
-    @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
-    private void chronotas$pauseAndStep(CallbackInfo ci) {
-        if (window == null) return;
-        boolean f8 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F8);
-        boolean f9 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F9);
-        boolean shift = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
-        boolean f4 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F4);
-        boolean f7 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F7);
-        boolean f10 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F10);
-        boolean f11 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F11);
-        if (f8 && !chronotas$f8WasDown) {
-            ChronoTASClient.paused = !ChronoTASClient.paused;
-            ChronoTASClient.stepTicks = 0;
-        }
-        if (f9 && !chronotas$f9WasDown && ChronoTASClient.paused) ChronoTASClient.stepTicks++;
-        chronotas$f8WasDown = f8;
-        chronotas$f9WasDown = f9;
-        if (ChronoTASClient.paused) ChronoTASClient.handlePausedHotkeys((net.minecraft.client.MinecraftClient)(Object)this, shift, f4, f7, f10, f11);
-        if (ChronoTASClient.paused) {
-            if (ChronoTASClient.stepTicks > 0) ChronoTASClient.stepTicks--;
-            else { ci.cancel(); return; }
-        }
-        if (ChronoTASClient.shouldSkipSlowPlaybackTick()) ci.cancel();
-    }
 }
