@@ -90,7 +90,7 @@ public final class ChronoTASWorldState {
         player.totalExperience = Math.max(0, state.totalExperience);
         player.experienceProgress = Math.max(0.0f, Math.min(1.0f, state.experienceProgress));
         player.clearStatusEffects();
-        var ops = RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager());
+        var ops = RegistryOps.of(JsonOps.INSTANCE, world.getRegistryManager());
         if (state.effects != null) for (String encoded : state.effects) {
             try {
                 StatusEffectInstance effect = StatusEffectInstance.CODEC.parse(ops, JsonParser.parseString(encoded)).result().orElse(null);
