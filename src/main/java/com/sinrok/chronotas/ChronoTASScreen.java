@@ -3,19 +3,21 @@ package com.sinrok.chronotas;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 import java.util.List;
 
 public final class ChronoTASScreen extends Screen {
     private int scroll;
+    private TextFieldWidget nameField;
     public ChronoTASScreen() { super(Text.literal("ChronoTAS")); }
 
     @Override protected void init() {
         int x = width / 2 - 105, y = height / 2 - 105;
         addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.recording ? "Stop & Save (F6)" : "Start Recording (F6)"),
                 b -> ChronoTASClient.toggleRecording(client)).dimensions(x, y, 210, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.playing ? "Stop Playback (F7)" : "Play Latest (F7)"),
+        addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.playing ? "Stop Playback (F7)" : "Play Selected / Latest (F7)"),
                 b -> ChronoTASClient.togglePlayback(client)).dimensions(x, y + 24, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Replay speed: " + ChronoTASClient.playbackSpeed + "x (cycle)"),
                 b -> { ChronoTASClient.cycleSpeed(client); clearAndInit(); }).dimensions(x, y + 48, 210, 20).build());
