@@ -66,7 +66,7 @@ public final class ChronoTASWorldState {
         s.experienceLevel = client.player.experienceLevel;
         s.totalExperience = client.player.totalExperience;
         s.experienceProgress = client.player.experienceProgress;
-        var ops = RegistryOps.of(JsonOps.INSTANCE, world.getRegistryManager());
+        var ops = RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager());
         for (StatusEffectInstance effect : client.player.getStatusEffects()) {
             try { s.effects.add(ChronoTASClient.GSON.toJson(StatusEffectInstance.CODEC.encodeStart(ops, effect).getOrThrow())); }
             catch (Exception ignored) { }
