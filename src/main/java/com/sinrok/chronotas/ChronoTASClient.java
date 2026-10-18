@@ -96,14 +96,14 @@ public final class ChronoTASClient implements ClientModInitializer {
         boolean shift = key(c, GLFW.GLFW_KEY_RIGHT_SHIFT), f4 = key(c, GLFW.GLFW_KEY_F4);
         boolean f6 = key(c, GLFW.GLFW_KEY_F6), f7 = key(c, GLFW.GLFW_KEY_F7);
         boolean f10 = key(c, GLFW.GLFW_KEY_F10), f11 = key(c, GLFW.GLFW_KEY_F11);
-        if (shift && !shiftWasDown && c.currentScreen == null) c.setScreen(new ChronoTASScreen());
+        if (shift && !shiftWasDown && c.currentScreen == null) { if (playing) paused = true; c.setScreen(new ChronoTASScreen()); }
         if (f4 && !f4WasDown) ChronoTASVideo.toggle(c);
         if (f6 && !f6WasDown) toggleRecording(c);
         if (f7 && !f7WasDown) togglePlayback(c);
         if (f10 && !f10WasDown) saveQuickState(c);
         if (f11 && !f11WasDown) restoreQuickState(c);
         shiftWasDown = shift; f4WasDown = f4; f6WasDown = f6; f7WasDown = f7; f10WasDown = f10; f11WasDown = f11;
-        if (playing && c.player != null) {
+        if (playing && !paused && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
             else apply(c, frames.get(playbackIndex));
         }
@@ -111,7 +111,7 @@ public final class ChronoTASClient implements ClientModInitializer {
 
     private static void endTick(MinecraftClient c) {
         if (recording && c.player != null) frames.add(capture(c));
-        if (playing && !frames.isEmpty()) playbackIndex++;
+        if (playing && !paused && !frames.isEmpty()) playbackIndex++;
     }
 
     public static void toggleRecording(MinecraftClient c) {
