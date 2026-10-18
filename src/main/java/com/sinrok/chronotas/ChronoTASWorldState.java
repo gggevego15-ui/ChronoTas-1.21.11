@@ -33,7 +33,7 @@ public final class ChronoTASWorldState {
         s.playerYaw = client.player.getYaw(); s.playerPitch = client.player.getPitch();
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
-        int maxY = Math.min(client.world.getTopY() - 1, center.getY() + 8);
+        int maxY = Math.min(319, center.getY() + 8);
         for (int x = center.getX() - 8; x <= center.getX() + 8; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = center.getZ() - 8; z <= center.getZ() + 8; z++) {
