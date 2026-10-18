@@ -30,6 +30,17 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static ChronoTASWorldState.Snapshot initialState;
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
     private static boolean shiftWasDown, f6WasDown, f7WasDown, f10WasDown, f11WasDown;
+    private static boolean pausedShiftWasDown, pausedF7WasDown, pausedF10WasDown, pausedF11WasDown;
+
+    public static void handlePausedHotkeys(MinecraftClient c, boolean shift, boolean f7, boolean f10, boolean f11) {
+        if (!paused) return;
+        if (shift && !pausedShiftWasDown && c.currentScreen == null) c.setScreen(new ChronoTASScreen());
+        if (f7 && !pausedF7WasDown) togglePlayback(c);
+        if (f10 && !pausedF10WasDown) saveQuickState(c);
+        if (f11 && !pausedF11WasDown) restoreQuickState(c);
+        pausedShiftWasDown = shift; pausedF7WasDown = f7;
+        pausedF10WasDown = f10; pausedF11WasDown = f11;
+    }
 
     @Override public void onInitializeClient() {
         try { Files.createDirectories(RECORDINGS); Files.createDirectories(STATES); } catch (IOException e) { e.printStackTrace(); }
@@ -113,6 +124,11 @@ public final class ChronoTASClient implements ClientModInitializer {
         set(c.options.forwardKey, f.forward); set(c.options.backKey, f.back);
         set(c.options.leftKey, f.left); set(c.options.rightKey, f.right);
         set(c.options.jumpKey, f.jump); set(c.options.sprintKey, f.sprint); set(c.options.sneakKey, f.sneak);
+        set(c.options.attackKey, f.attack); set(c.options.useKey, f.use);
+        set(c.options.pickItemKey, f.pickItem); set(c.options.dropKey, f.drop);
+        set(c.options.inventoryKey, f.inventory);
+        for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) set(c.options.hotbarKeys[i], f.hotbar[i]);
+        ChronoTASWorldState.restoreEntities(c, f.entities);
         c.player.setYaw(f.yaw); c.player.setPitch(f.pitch);
     }
     private static Frame capture(MinecraftClient c) {
@@ -120,12 +136,21 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.forward = c.options.forwardKey.isPressed(); f.back = c.options.backKey.isPressed();
         f.left = c.options.leftKey.isPressed(); f.right = c.options.rightKey.isPressed();
         f.jump = c.options.jumpKey.isPressed(); f.sprint = c.options.sprintKey.isPressed();
-        f.sneak = c.options.sneakKey.isPressed(); f.yaw = c.player.getYaw(); f.pitch = c.player.getPitch();
-        f.x = c.player.getX(); f.y = c.player.getY(); f.z = c.player.getZ(); return f;
+        f.sneak = c.options.sneakKey.isPressed();
+        f.attack = c.options.attackKey.isPressed(); f.use = c.options.useKey.isPressed();
+        f.pickItem = c.options.pickItemKey.isPressed(); f.drop = c.options.dropKey.isPressed();
+        f.inventory = c.options.inventoryKey.isPressed();
+        for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) f.hotbar[i] = c.options.hotbarKeys[i].isPressed();
+        f.yaw = c.player.getYaw(); f.pitch = c.player.getPitch();
+        f.x = c.player.getX(); f.y = c.player.getY(); f.z = c.player.getZ();
+        f.entities = ChronoTASWorldState.captureEntities(c, 64); return f;
     }
     private static void release(MinecraftClient c) {
         set(c.options.forwardKey, false); set(c.options.backKey, false); set(c.options.leftKey, false);
         set(c.options.rightKey, false); set(c.options.jumpKey, false); set(c.options.sprintKey, false); set(c.options.sneakKey, false);
+        set(c.options.attackKey, false); set(c.options.useKey, false); set(c.options.pickItemKey, false);
+        set(c.options.dropKey, false); set(c.options.inventoryKey, false);
+        for (KeyBinding k : c.options.hotbarKeys) set(k, false);
     }
     private static void save() {
         try {
@@ -165,6 +190,9 @@ public final class ChronoTASClient implements ClientModInitializer {
     }
     public static final class Frame {
         public boolean forward, back, left, right, jump, sprint, sneak;
+        public boolean attack, use, pickItem, drop, inventory;
+        public boolean[] hotbar = new boolean[9];
+        public List<ChronoTASWorldState.EntityState> entities = new ArrayList<>();
         public float yaw, pitch; public double x, y, z;
     }
 }

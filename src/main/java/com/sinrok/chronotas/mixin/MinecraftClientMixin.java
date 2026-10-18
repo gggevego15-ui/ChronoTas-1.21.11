@@ -21,6 +21,10 @@ public abstract class MinecraftClientMixin {
         if (window == null) return;
         boolean f8 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F8);
         boolean f9 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F9);
+        boolean shift = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+        boolean f7 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F7);
+        boolean f10 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F10);
+        boolean f11 = InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_F11);
         if (f8 && !chronotas$f8WasDown) {
             ChronoTASClient.paused = !ChronoTASClient.paused;
             ChronoTASClient.stepTicks = 0;
@@ -28,6 +32,7 @@ public abstract class MinecraftClientMixin {
         if (f9 && !chronotas$f9WasDown && ChronoTASClient.paused) ChronoTASClient.stepTicks++;
         chronotas$f8WasDown = f8;
         chronotas$f9WasDown = f9;
+        if (ChronoTASClient.paused) ChronoTASClient.handlePausedHotkeys((net.minecraft.client.MinecraftClient)(Object)this, shift, f7, f10, f11);
         if (ChronoTASClient.paused) {
             if (ChronoTASClient.stepTicks > 0) ChronoTASClient.stepTicks--;
             else ci.cancel();

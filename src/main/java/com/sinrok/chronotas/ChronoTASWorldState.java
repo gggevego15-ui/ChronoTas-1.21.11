@@ -9,7 +9,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
@@ -33,7 +32,7 @@ public final class ChronoTASWorldState {
         s.playerYaw = client.player.getYaw(); s.playerPitch = client.player.getPitch();
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
-        int maxY = Math.min(319, center.getY() + 8);
+        int maxY = Math.min(client.world.getBottomY() + client.world.getHeight() - 1, center.getY() + 8);
         for (int x = center.getX() - 8; x <= center.getX() + 8; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = center.getZ() - 8; z <= center.getZ() + 8; z++) {
@@ -42,17 +41,39 @@ public final class ChronoTASWorldState {
                 }
             }
         }
-        Box area = new Box(center).expand(64);
+        s.entities.addAll(captureEntities(client, 64));
+        return s;
+    }
+
+    public static List<EntityState> captureEntities(MinecraftClient client, double radius) {
+        List<EntityState> result = new ArrayList<>();
+        if (client.world == null || client.player == null) return result;
+        Box area = new Box(client.player.getBlockPos()).expand(radius);
         for (Entity e : client.world.getEntitiesByClass(Entity.class, area,
                 entity -> !(entity instanceof PlayerEntity))) {
             EntityState es = new EntityState();
-            es.uuid = e.getUuidAsString(); es.x = e.getX(); es.y = e.getY(); es.z = e.getZ();
+            es.uuid = e.getUuidAsString();
+            es.type = net.minecraft.registry.Registries.ENTITY_TYPE.getId(e.getType()).toString();
+            es.x = e.getX(); es.y = e.getY(); es.z = e.getZ();
             es.vx = e.getVelocity().x; es.vy = e.getVelocity().y; es.vz = e.getVelocity().z;
             es.yaw = e.getYaw(); es.pitch = e.getPitch();
             es.health = e instanceof LivingEntity le ? le.getHealth() : -1;
-            s.entities.add(es);
+            result.add(es);
         }
-        return s;
+        return result;
+    }
+
+    public static void restoreEntities(MinecraftClient client, List<EntityState> states) {
+        if (client.world == null || states == null) return;
+        for (EntityState es : states) {
+            try {
+                Entity entity = client.world.getEntity(UUID.fromString(es.uuid));
+                if (entity == null || entity instanceof PlayerEntity) continue;
+                entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
+                entity.setVelocity(es.vx, es.vy, es.vz);
+                if (entity instanceof LivingEntity le && es.health >= 0) le.setHealth(Math.min(es.health, le.getMaxHealth()));
+            } catch (RuntimeException ignored) { }
+        }
     }
 
     public static void recordBlockBeforeChange(World world, BlockPos pos) {
@@ -78,15 +99,7 @@ public final class ChronoTASWorldState {
             }
             client.player.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ,
                     snapshot.playerYaw, snapshot.playerPitch);
-            for (EntityState es : snapshot.entities) {
-                try {
-                    Entity entity = client.world.getEntity(UUID.fromString(es.uuid));
-                    if (entity == null || entity instanceof PlayerEntity) continue;
-                    entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
-                    entity.setVelocity(es.vx, es.vy, es.vz);
-                    if (entity instanceof LivingEntity le && es.health >= 0) le.setHealth(Math.min(es.health, le.getMaxHealth()));
-                } catch (RuntimeException ignored) { }
-            }
+            restoreEntities(client, snapshot.entities);
         } finally {
             restoring = false;
         }
@@ -114,7 +127,7 @@ public final class ChronoTASWorldState {
         public List<EntityState> entities = new ArrayList<>();
     }
     public static final class EntityState {
-        public String uuid;
+        public String uuid, type;
         public double x, y, z, vx, vy, vz;
         public float yaw, pitch, health;
     }
