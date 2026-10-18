@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.option.Perspective;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -27,15 +28,19 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static boolean paused, recording, playing;
     public static int stepTicks, playbackIndex;
     public static double playbackSpeed = 1.0, speedAccumulator;
+    public static float gameTickRate = 20.0f;
+    public static boolean cinematicCamera = true;
+    private static Perspective previousPerspective = Perspective.FIRST_PERSON;
     public static String recordingName = "run";
     public static String requestedRecordingName = "My TAS";
     public static String selectedReplay = "";
     public static final List<Frame> frames = new ArrayList<>();
     public static ChronoTASWorldState.Snapshot initialState;
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
-    private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f8WasDown, f9WasDown, f10WasDown, f11WasDown;
-    private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF11WasDown;
+    private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f8WasDown, f9WasDown, f10WasDown, f12WasDown;
+    private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF12WasDown;
     private static int frameToCorrect = -1;
+    public static final Map<String, String> currentTickBlockChanges = new LinkedHashMap<>();
 
     @Override public void onInitializeClient() {
         try { Files.createDirectories(RECORDINGS); Files.createDirectories(STATES); } catch (IOException e) { e.printStackTrace(); }
@@ -64,10 +69,10 @@ public final class ChronoTASClient implements ClientModInitializer {
             context.drawText(c.textRenderer, Text.literal("F8   Pause / resume"), x, y + 99, 0xFFFFFFFF, false);
             context.drawText(c.textRenderer, Text.literal("F9   Step one tick"), x, y + 111, 0xFFFFFFFF, false);
             context.drawText(c.textRenderer, Text.literal("F10  Save state"), x, y + 123, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F11  Restore state"), x, y + 135, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F12  Restore state"), x, y + 135, 0xFFFFFFFF, false);
             ChronoTASVideo.captureFrame(c);
         });
-        System.out.println("[ChronoTAS] Right Shift menu | F4 video | F6 record | F7 playback | F8 pause | F9 step | F10 save | F11 restore");
+        System.out.println("[ChronoTAS] Right Shift menu | F4 video | F6 record | F7 playback | F8 pause | F9 step | F10 save | F12 restore");
     }
 
     private static void drawKey(net.minecraft.client.gui.DrawContext ctx, MinecraftClient c, String label, boolean down, int x, int y) {
@@ -87,15 +92,15 @@ public final class ChronoTASClient implements ClientModInitializer {
         return true;
     }
 
-    public static void handlePausedHotkeys(MinecraftClient c, boolean shift, boolean f4, boolean f7, boolean f10, boolean f11) {
+    public static void handlePausedHotkeys(MinecraftClient c, boolean shift, boolean f4, boolean f7, boolean f10, boolean f12) {
         if (!paused) return;
         if (shift && !pausedShiftWasDown && c.currentScreen == null) c.setScreen(new ChronoTASScreen());
         if (f4 && !pausedF4WasDown) ChronoTASVideo.toggle(c);
         if (f7 && !pausedF7WasDown) togglePlayback(c);
         if (f10 && !pausedF10WasDown) saveQuickState(c);
-        if (f11 && !pausedF11WasDown) restoreQuickState(c);
+        if (f12 && !pausedF12WasDown) restoreQuickState(c);
         pausedShiftWasDown = shift; pausedF4WasDown = f4; pausedF7WasDown = f7;
-        pausedF10WasDown = f10; pausedF11WasDown = f11;
+        pausedF10WasDown = f10; pausedF12WasDown = f12;
     }
 
     private static boolean key(MinecraftClient c, int code) { return InputUtil.isKeyPressed(c.getWindow(), code); }
@@ -104,7 +109,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         boolean shift = key(c, GLFW.GLFW_KEY_RIGHT_SHIFT), f4 = key(c, GLFW.GLFW_KEY_F4);
         boolean f6 = key(c, GLFW.GLFW_KEY_F6), f7 = key(c, GLFW.GLFW_KEY_F7);
         boolean f8 = key(c, GLFW.GLFW_KEY_F8), f9 = key(c, GLFW.GLFW_KEY_F9);
-        boolean f10 = key(c, GLFW.GLFW_KEY_F10), f11 = key(c, GLFW.GLFW_KEY_F11);
+        boolean f10 = key(c, GLFW.GLFW_KEY_F10), f12 = key(c, GLFW.GLFW_KEY_F12);
         if (shift && !shiftWasDown && c.currentScreen == null) { if (playing) paused = true; c.setScreen(new ChronoTASScreen()); }
         if (f4 && !f4WasDown) ChronoTASVideo.toggle(c);
         if (f6 && !f6WasDown) toggleRecording(c);
@@ -112,9 +117,9 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (f8 && !f8WasDown) { paused = !paused; stepTicks = 0; if (paused) release(c); }
         if (f9 && !f9WasDown && paused && playing) stepTicks++;
         if (f10 && !f10WasDown) saveQuickState(c);
-        if (f11 && !f11WasDown) restoreQuickState(c);
+        if (f12 && !f12WasDown) restoreQuickState(c);
         shiftWasDown = shift; f4WasDown = f4; f6WasDown = f6; f7WasDown = f7;
-        f8WasDown = f8; f9WasDown = f9; f10WasDown = f10; f11WasDown = f11;
+        f8WasDown = f8; f9WasDown = f9; f10WasDown = f10; f12WasDown = f12;
         if (playing && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
             else if (!paused) {
@@ -146,6 +151,8 @@ public final class ChronoTASClient implements ClientModInitializer {
         c.player.setYaw(f.yaw);
         c.player.setPitch(f.pitch);
         ChronoTASWorldState.restoreEntities(c, f.entities);
+        ChronoTASWorldState.restoreFrameBlocks(c, f.blockChanges);
+        ChronoTASWorldState.restoreInventory(c, f.inventory, f.selectedSlot);
     }
 
     public static void toggleRecording(MinecraftClient c) {
@@ -154,7 +161,7 @@ public final class ChronoTASClient implements ClientModInitializer {
             return;
         }
         if (playing) stopPlayback(c, "Playback stopped.");
-        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear();
+        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear(); currentTickBlockChanges.clear();
         initialState = ChronoTASWorldState.capture(c);
         recordingName = uniqueRecordingName(requestedRecordingName);
         requestedRecordingName = recordingName;
@@ -171,6 +178,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (!load(target)) { say(c, "Could not load recording. File may be damaged."); return; }
         ChronoTASWorldState.restore(c, initialState, recordedBlockChanges);
         playbackIndex = 0; playing = true; paused = false; speedAccumulator = 0;
+        if (cinematicCamera) { previousPerspective = c.options.getPerspective(); c.options.setPerspective(Perspective.THIRD_PERSON_BACK); }
         say(c, "Restored initial snapshot; playing " + recordingName + ". F7 stops.");
     }
 
@@ -183,7 +191,27 @@ public final class ChronoTASClient implements ClientModInitializer {
     }
 
     public static void stopPlayback(MinecraftClient c, String text) {
-        playing = false; release(c); say(c, text);
+        playing = false; frameToCorrect = -1; release(c);
+        if (cinematicCamera && c != null) c.options.setPerspective(previousPerspective);
+        say(c, text);
+    }
+
+    public static void cycleGameSpeed(MinecraftClient c) {
+        float[] rates = {20.0f, 10.0f, 5.0f, 2.0f, 1.0f};
+        int next = 0;
+        for (int i = 0; i < rates.length; i++) if (Math.abs(gameTickRate - rates[i]) < 0.01f) next = (i + 1) % rates.length;
+        gameTickRate = rates[next];
+        if (c != null && c.getServer() != null) c.getServer().getTickManager().setTickRate(gameTickRate);
+        say(c, "Game speed: " + gameTickRate + " TPS" + (c != null && c.getServer() == null ? " (open singleplayer world to apply)" : ""));
+    }
+
+    public static void toggleCinematicCamera(MinecraftClient c) {
+        cinematicCamera = !cinematicCamera;
+        if (playing && c != null) {
+            if (cinematicCamera) { previousPerspective = c.options.getPerspective(); c.options.setPerspective(Perspective.THIRD_PERSON_BACK); }
+            else c.options.setPerspective(previousPerspective);
+        }
+        say(c, "Replay camera: " + (cinematicCamera ? "cinematic third-person" : "normal perspective"));
     }
 
     public static void saveQuickState(MinecraftClient c) {
@@ -234,6 +262,10 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.playerVx = c.player.getVelocity().x;
         f.playerVy = c.player.getVelocity().y;
         f.playerVz = c.player.getVelocity().z;
+        f.inventory = ChronoTASWorldState.captureInventory(c);
+        f.selectedSlot = c.player.getInventory().selectedSlot;
+        f.blockChanges = new LinkedHashMap<>(currentTickBlockChanges);
+        currentTickBlockChanges.clear();
         // Store only entities present in this frame. Carrying every entity ever seen
         // forward made each frame grow indefinitely and could freeze/crash the client.
         f.entities = ChronoTASWorldState.captureEntities(c, 32);
@@ -324,5 +356,8 @@ public final class ChronoTASClient implements ClientModInitializer {
         public List<ChronoTASWorldState.EntityState> entities = new ArrayList<>();
         public float yaw, pitch; public double x, y, z;
         public double playerVx, playerVy, playerVz;
+        public List<String> inventory = new ArrayList<>();
+        public int selectedSlot;
+        public Map<String, String> blockChanges = new LinkedHashMap<>();
     }
 }
