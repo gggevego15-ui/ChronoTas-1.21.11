@@ -9,6 +9,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.Click;
+import net.minecraft.client.input.MouseInput;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.text.Text;
@@ -245,7 +246,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         queueActionEdge(c.options.pickItemKey, f.pickItem, "pick");
         if (f.screenClicks != null && c.currentScreen instanceof HandledScreen<?> screen) {
             for (ScreenClick click : f.screenClicks) {
-                try { screen.mouseClicked(new Click(click.x, click.y, click.button), false); }
+                try { screen.mouseClicked(new Click(click.x, click.y, new MouseInput(click.button, 0)), false); }
                 catch (RuntimeException ignored) { }
             }
         }
