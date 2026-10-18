@@ -100,7 +100,7 @@ public final class ChronoTASScreen extends Screen {
         addDrawableChild(ButtonWidget.builder(Text.literal(label), action).dimensions(x, y, w, h).build());
     }
 
-    private void clearAndInit() { clearChildren(); init(); }
+    @Override protected void clearAndInit() { clearChildren(); init(); }
 
     @Override public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         ctx.fill(0, 0, width, height, 0xD9080D16);
