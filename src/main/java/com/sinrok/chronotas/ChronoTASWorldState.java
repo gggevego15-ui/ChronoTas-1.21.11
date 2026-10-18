@@ -8,6 +8,10 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.item.ItemStack;
 import net.minecraft.block.BlockState;
@@ -62,7 +66,7 @@ public final class ChronoTASWorldState {
         s.experienceLevel = client.player.experienceLevel;
         s.totalExperience = client.player.totalExperience;
         s.experienceProgress = client.player.experienceProgress;
-        var ops = RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager());
+        var ops = RegistryOps.of(JsonOps.INSTANCE, world.getRegistryManager());
         for (StatusEffectInstance effect : client.player.getStatusEffects()) {
             try { s.effects.add(ChronoTASClient.GSON.toJson(StatusEffectInstance.CODEC.encodeStart(ops, effect).getOrThrow())); }
             catch (Exception ignored) { }
@@ -71,8 +75,11 @@ public final class ChronoTASWorldState {
     }
 
     public static void restorePlayerState(MinecraftClient client, PlayerState state) {
-        if (client.player == null || client.world == null || state == null) return;
-        var player = client.player;
+        if (client.player != null && client.world != null) restorePlayerState(client.player, client.world, state);
+    }
+
+    private static void restorePlayerState(PlayerEntity player, World world, PlayerState state) {
+        if (player == null || world == null || state == null) return;
         player.setHealth(Math.max(0.0f, Math.min(state.health, player.getMaxHealth())));
         player.setAbsorptionAmount(Math.max(0.0f, state.absorption));
         player.getHungerManager().setFoodLevel(Math.max(0, Math.min(20, state.food)));
@@ -114,21 +121,25 @@ public final class ChronoTASWorldState {
     }
 
     public static void restoreEntities(MinecraftClient client, List<EntityState> states) {
-        if (client.world == null || states == null) return;
+        if (client.world != null) restoreEntities(client.world, states);
+    }
+
+    private static void restoreEntities(World world, List<EntityState> states) {
+        if (world == null || states == null) return;
         for (EntityState es : states) {
             try {
                 UUID uuid = UUID.fromString(es.uuid);
-                Entity entity = client.world.getEntity(uuid);
+                Entity entity = world.getEntity(uuid);
                 if (entity == null) {
                     Identifier id = Identifier.tryParse(es.type);
                     if (id == null) continue;
                     var type = Registries.ENTITY_TYPE.get(id);
                     if (type == null) continue;
-                    entity = type.create(client.world, SpawnReason.LOAD);
+                    entity = type.create(world, SpawnReason.LOAD);
                     if (entity == null) continue;
                     entity.setUuid(uuid);
                     entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
-                    if (!client.world.spawnEntity(entity)) continue;
+                    if (!world.spawnEntity(entity)) continue;
                 }
                 if (entity instanceof PlayerEntity) continue;
                 entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
@@ -157,12 +168,16 @@ public final class ChronoTASWorldState {
     }
 
     public static void restoreInventory(MinecraftClient client, List<String> inventory, int selectedSlot) {
-        if (client.player == null || inventory == null || inventory.isEmpty()) return;
-        var playerInventory = client.player.getInventory();
+        if (client.player != null && client.world != null) restoreInventory(client.player, client.world, inventory, selectedSlot);
+    }
+
+    private static void restoreInventory(PlayerEntity player, World world, List<String> inventory, int selectedSlot) {
+        if (player == null || world == null || inventory == null || inventory.isEmpty()) return;
+        var playerInventory = player.getInventory();
         int count = Math.min(playerInventory.size(), inventory.size());
         for (int i = 0; i < count; i++) {
             try {
-                ItemStack stack = ItemStack.CODEC.parse(RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager()), JsonParser.parseString(inventory.get(i)))
+                ItemStack stack = ItemStack.CODEC.parse(RegistryOps.of(JsonOps.INSTANCE, world.getRegistryManager()), JsonParser.parseString(inventory.get(i)))
                         .result().orElse(ItemStack.EMPTY);
                 playerInventory.setStack(i, stack);
             } catch (Exception ignored) { }
@@ -206,7 +221,27 @@ public final class ChronoTASWorldState {
             restoreInventory(client, snapshot.inventory, snapshot.selectedSlot);
             restorePlayerState(client, snapshot.playerState);
             restoreEntities(client, snapshot.entities);
+            restoreIntegratedServer(client, snapshot);
         } finally { restoring = false; }
+    }
+
+    private static void restoreIntegratedServer(MinecraftClient client, Snapshot snapshot) {
+        var server = client.getServer();
+        if (server == null || client.player == null) return;
+        try {
+            Identifier dimension = Identifier.tryParse(snapshot.worldKey);
+            if (dimension == null) return;
+            ServerWorld serverWorld = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, dimension));
+            ServerPlayerEntity serverPlayer = server.getPlayerManager().getPlayer(client.player.getUuid());
+            if (serverWorld == null || serverPlayer == null) return;
+            for (Map.Entry<String, String> e : snapshot.blocks.entrySet()) restoreBlock(serverWorld, e.getKey(), e.getValue());
+            serverPlayer.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ, snapshot.playerYaw, snapshot.playerPitch);
+            restoreInventory(serverPlayer, serverWorld, snapshot.inventory, snapshot.selectedSlot);
+            restorePlayerState(serverPlayer, serverWorld, snapshot.playerState);
+            restoreEntities(serverWorld, snapshot.entities);
+        } catch (RuntimeException ex) {
+            System.err.println("[ChronoTAS] Integrated-server snapshot restore failed: " + ex.getMessage());
+        }
     }
 
     private static void restoreBlock(World world, String packed, String encoded) {
