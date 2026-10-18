@@ -21,23 +21,29 @@ public final class ChronoTASScreen extends Screen {
                 b -> ChronoTASClient.togglePlayback(client)).dimensions(x, y + 24, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Replay speed: " + ChronoTASClient.playbackSpeed + "x (cycle)"),
                 b -> { ChronoTASClient.cycleSpeed(client); clearAndInit(); }).dimensions(x, y + 48, 210, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Game speed: " + ChronoTASClient.gameTickRate + " TPS"),
+                b -> { ChronoTASClient.cycleGameSpeed(client); clearAndInit(); })
+                .dimensions(x, y + 72, 210, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Replay camera: " + (ChronoTASClient.cinematicCamera ? "3rd person ON" : "OFF")),
+                b -> { ChronoTASClient.toggleCinematicCamera(client); clearAndInit(); })
+                .dimensions(x, y + 96, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASVideo.isRecording() ? "Stop video (F4)" : "Record MP4 video (F4)"),
-                b -> { ChronoTASVideo.toggle(client); clearAndInit(); }).dimensions(x, y + 72, 210, 20).build());
+                b -> { ChronoTASVideo.toggle(client); clearAndInit(); }).dimensions(x, y + 120, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.paused ? "Resume (F8)" : "Pause (F8)"),
                 b -> { ChronoTASClient.paused = !ChronoTASClient.paused; ChronoTASClient.stepTicks = 0; clearAndInit(); })
-                .dimensions(x, y + 96, 102, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Step (F9)"), b -> ChronoTASClient.stepTicks++)
-                .dimensions(x + 108, y + 96, 102, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Refresh list"), b -> clearAndInit())
-                .dimensions(x, y + 120, 102, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
-                .dimensions(x + 108, y + 120, 102, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Save State (F10)"), b -> ChronoTASClient.saveQuickState(client))
                 .dimensions(x, y + 144, 102, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Restore (F11)"), b -> ChronoTASClient.restoreQuickState(client))
+        addDrawableChild(ButtonWidget.builder(Text.literal("Step (F9)"), b -> ChronoTASClient.stepTicks++)
                 .dimensions(x + 108, y + 144, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Refresh list"), b -> clearAndInit())
+                .dimensions(x, y + 168, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
+                .dimensions(x + 108, y + 168, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Save State (F10)"), b -> ChronoTASClient.saveQuickState(client))
+                .dimensions(x, y + 192, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Restore (F12)"), b -> ChronoTASClient.restoreQuickState(client))
+                .dimensions(x + 108, y + 192, 102, 20).build());
 
-        nameField = new TextFieldWidget(textRenderer, x, y + 168, 210, 20, Text.literal("Replay name"));
+        nameField = new TextFieldWidget(textRenderer, x, y + 216, 210, 20, Text.literal("Replay name"));
         nameField.setMaxLength(48);
         nameField.setText(ChronoTASClient.requestedRecordingName);
         nameField.setChangedListener(value -> ChronoTASClient.requestedRecordingName = value);
@@ -51,9 +57,9 @@ public final class ChronoTASScreen extends Screen {
                 ChronoTASClient.sayPublic(client, "Replay renamed.");
                 clearAndInit();
             } else ChronoTASClient.sayPublic(client, "Rename failed: name exists or replay is damaged.");
-        }).dimensions(x, y + 192, 210, 20).build());
+        }).dimensions(x, y + 240, 210, 20).build());
         List<String> files = ChronoTASClient.list();
-        int rowY = y + 220, maxRows = Math.max(1, (height - rowY - 16) / 22);
+        int rowY = y + 268, maxRows = Math.max(1, (height - rowY - 16) / 22);
         int start = Math.min(scroll, Math.max(0, files.size() - maxRows));
         for (int i = start; i < Math.min(files.size(), start + maxRows); i++) {
             String file = files.get(i);
@@ -78,7 +84,7 @@ public final class ChronoTASScreen extends Screen {
         String status = ChronoTASClient.recording ? "RECORDING" : ChronoTASClient.playing ? "PLAYING" : "IDLE";
         context.drawCenteredTextWithShadow(textRenderer, "Status: " + status + " | ticks: " + ChronoTASClient.frames.size(),
                 width / 2, 34, 0xFFB9D7FF);
-        context.drawCenteredTextWithShadow(textRenderer, "F4 Video | F6 Record | F7 Replay | F8 Pause | F9 Step | F10 Save | F11 Restore",
+        context.drawCenteredTextWithShadow(textRenderer, "F4 Video | F6 Record | F7 Replay | F8 Pause | F9 Step | F10 Save | F12 Restore",
                 width / 2, 48, 0xFFDDDDDD);
         super.render(context, mouseX, mouseY, delta);
     }
