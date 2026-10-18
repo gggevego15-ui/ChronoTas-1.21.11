@@ -8,6 +8,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.item.ItemStack;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.Registries;
@@ -33,6 +34,7 @@ public final class ChronoTASWorldState {
         s.playerX = client.player.getX(); s.playerY = client.player.getY(); s.playerZ = client.player.getZ();
         s.playerYaw = client.player.getYaw(); s.playerPitch = client.player.getPitch();
         s.inventory = captureInventory(client);
+        s.playerState = capturePlayerState(client);
         s.selectedSlot = client.player.getInventory().getSelectedSlot();
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
@@ -45,6 +47,49 @@ public final class ChronoTASWorldState {
                 }
         s.entities.addAll(captureEntities(client, 64));
         return s;
+    }
+
+
+    public static PlayerState capturePlayerState(MinecraftClient client) {
+        if (client.player == null || client.world == null) return null;
+        PlayerState s = new PlayerState();
+        s.health = client.player.getHealth();
+        s.absorption = client.player.getAbsorptionAmount();
+        s.food = client.player.getHungerManager().getFoodLevel();
+        s.saturation = client.player.getHungerManager().getSaturationLevel();
+        s.air = client.player.getAir();
+        s.fireTicks = client.player.getFireTicks();
+        s.experienceLevel = client.player.experienceLevel;
+        s.totalExperience = client.player.totalExperience;
+        s.experienceProgress = client.player.experienceProgress;
+        var ops = RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager());
+        for (StatusEffectInstance effect : client.player.getStatusEffects()) {
+            try { s.effects.add(ChronoTASClient.GSON.toJson(StatusEffectInstance.CODEC.encodeStart(ops, effect).getOrThrow())); }
+            catch (Exception ignored) { }
+        }
+        return s;
+    }
+
+    public static void restorePlayerState(MinecraftClient client, PlayerState state) {
+        if (client.player == null || client.world == null || state == null) return;
+        var player = client.player;
+        player.setHealth(Math.max(0.0f, Math.min(state.health, player.getMaxHealth())));
+        player.setAbsorptionAmount(Math.max(0.0f, state.absorption));
+        player.getHungerManager().setFoodLevel(Math.max(0, Math.min(20, state.food)));
+        player.getHungerManager().setSaturationLevel(Math.max(0.0f, Math.min(state.saturation, state.food)));
+        player.setAir(state.air);
+        player.setFireTicks(Math.max(0, state.fireTicks));
+        player.experienceLevel = Math.max(0, state.experienceLevel);
+        player.totalExperience = Math.max(0, state.totalExperience);
+        player.experienceProgress = Math.max(0.0f, Math.min(1.0f, state.experienceProgress));
+        player.clearStatusEffects();
+        var ops = RegistryOps.of(JsonOps.INSTANCE, client.world.getRegistryManager());
+        if (state.effects != null) for (String encoded : state.effects) {
+            try {
+                StatusEffectInstance effect = StatusEffectInstance.CODEC.parse(ops, JsonParser.parseString(encoded)).result().orElse(null);
+                if (effect != null) player.addStatusEffect(effect);
+            } catch (Exception ignored) { }
+        }
     }
 
     public static List<EntityState> captureEntities(MinecraftClient client, double radius) {
@@ -159,6 +204,7 @@ public final class ChronoTASWorldState {
             if (changed != null) for (Map.Entry<String, String> e : changed.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
             client.player.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ, snapshot.playerYaw, snapshot.playerPitch);
             restoreInventory(client, snapshot.inventory, snapshot.selectedSlot);
+            restorePlayerState(client, snapshot.playerState);
             restoreEntities(client, snapshot.entities);
         } finally { restoring = false; }
     }
@@ -183,6 +229,12 @@ public final class ChronoTASWorldState {
         public List<String> inventory = new ArrayList<>();
         public int selectedSlot;
         public List<EntityState> entities = new ArrayList<>();
+        public PlayerState playerState = new PlayerState();
+    }
+    public static final class PlayerState {
+        public float health, absorption, saturation, experienceProgress;
+        public int food = 20, air = 300, fireTicks, experienceLevel, totalExperience;
+        public List<String> effects = new ArrayList<>();
     }
     public static final class EntityState {
         public String uuid, type;
