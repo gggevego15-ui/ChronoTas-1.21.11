@@ -31,7 +31,7 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static final List<Frame> frames = new ArrayList<>();
     public static ChronoTASWorldState.Snapshot initialState;
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
-    private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f10WasDown, f11WasDown;
+    private static boolean shiftWasDown, f4WasDown, f6WasDown, f7WasDown, f8WasDown, f9WasDown, f10WasDown, f11WasDown;
     private static boolean pausedShiftWasDown, pausedF4WasDown, pausedF7WasDown, pausedF10WasDown, pausedF11WasDown;
 
     @Override public void onInitializeClient() {
@@ -95,17 +95,26 @@ public final class ChronoTASClient implements ClientModInitializer {
     private static void startTick(MinecraftClient c) {
         boolean shift = key(c, GLFW.GLFW_KEY_RIGHT_SHIFT), f4 = key(c, GLFW.GLFW_KEY_F4);
         boolean f6 = key(c, GLFW.GLFW_KEY_F6), f7 = key(c, GLFW.GLFW_KEY_F7);
+        boolean f8 = key(c, GLFW.GLFW_KEY_F8), f9 = key(c, GLFW.GLFW_KEY_F9);
         boolean f10 = key(c, GLFW.GLFW_KEY_F10), f11 = key(c, GLFW.GLFW_KEY_F11);
         if (shift && !shiftWasDown && c.currentScreen == null) { if (playing) paused = true; c.setScreen(new ChronoTASScreen()); }
         if (f4 && !f4WasDown) ChronoTASVideo.toggle(c);
         if (f6 && !f6WasDown) toggleRecording(c);
         if (f7 && !f7WasDown) togglePlayback(c);
+        if (f8 && !f8WasDown) { paused = !paused; stepTicks = 0; if (paused) release(c); }
+        if (f9 && !f9WasDown && paused && playing) stepTicks++;
         if (f10 && !f10WasDown) saveQuickState(c);
         if (f11 && !f11WasDown) restoreQuickState(c);
-        shiftWasDown = shift; f4WasDown = f4; f6WasDown = f6; f7WasDown = f7; f10WasDown = f10; f11WasDown = f11;
-        if (playing && !paused && c.player != null) {
+        shiftWasDown = shift; f4WasDown = f4; f6WasDown = f6; f7WasDown = f7;
+        f8WasDown = f8; f9WasDown = f9; f10WasDown = f10; f11WasDown = f11;
+        if (playing && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
-            else apply(c, frames.get(playbackIndex));
+            else if (!paused) apply(c, frames.get(playbackIndex));
+            else if (stepTicks > 0) {
+                apply(c, frames.get(playbackIndex));
+                playbackIndex++;
+                stepTicks--;
+            } else release(c);
         }
     }
 
