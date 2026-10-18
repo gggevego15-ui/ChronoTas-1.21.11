@@ -37,15 +37,33 @@ public final class ChronoTASScreen extends Screen {
         addDrawableChild(ButtonWidget.builder(Text.literal("Restore (F11)"), b -> ChronoTASClient.restoreQuickState(client))
                 .dimensions(x + 108, y + 144, 102, 20).build());
 
+        nameField = new TextFieldWidget(textRenderer, x, y + 168, 210, 20, Text.literal("Replay name"));
+        nameField.setMaxLength(48);
+        nameField.setText(ChronoTASClient.requestedRecordingName);
+        nameField.setPlaceholder(Text.literal("Enter replay name..."));
+        addDrawableChild(nameField);
+        addDrawableChild(ButtonWidget.builder(Text.literal("Rename selected replay"), b -> {
+            if (ChronoTASClient.selectedReplay == null || ChronoTASClient.selectedReplay.isBlank()) {
+                ChronoTASClient.sayPublic(client, "Select a replay from the list first."); return;
+            }
+            if (ChronoTASClient.renameRecording(ChronoTASClient.selectedReplay, nameField.getText())) {
+                ChronoTASClient.sayPublic(client, "Replay renamed.");
+                clearAndInit();
+            } else ChronoTASClient.sayPublic(client, "Rename failed: name exists or replay is damaged.");
+        }).dimensions(x, y + 192, 210, 20).build());
         List<String> files = ChronoTASClient.list();
-        int rowY = y + 178, maxRows = Math.max(1, (height - rowY - 16) / 22);
+        int rowY = y + 220, maxRows = Math.max(1, (height - rowY - 16) / 22);
         int start = Math.min(scroll, Math.max(0, files.size() - maxRows));
         for (int i = start; i < Math.min(files.size(), start + maxRows); i++) {
             String file = files.get(i);
-            addDrawableChild(ButtonWidget.builder(Text.literal("Load: " + file),
-                    b -> { if (ChronoTASClient.load(file) && client.player != null)
-                        client.player.sendMessage(Text.literal("[ChronoTAS] Loaded " + file), false); })
-                    .dimensions(x, rowY, 210, 20).build());
+            addDrawableChild(ButtonWidget.builder(Text.literal((file.equals(ChronoTASClient.selectedReplay) ? "* " : "") + file.replaceFirst("\\.json$", "")),
+                    b -> {
+                        ChronoTASClient.selectedReplay = file;
+                        ChronoTASClient.requestedRecordingName = file.replaceFirst("\\.json$", "");
+                        if (nameField != null) nameField.setText(ChronoTASClient.requestedRecordingName);
+                        if (ChronoTASClient.load(file)) ChronoTASClient.sayPublic(client, "Selected " + ChronoTASClient.recordingName);
+                        clearAndInit();
+                    }).dimensions(x, rowY, 210, 20).build());
             rowY += 22;
         }
     }
