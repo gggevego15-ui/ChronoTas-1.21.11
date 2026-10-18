@@ -50,7 +50,9 @@ public final class ChronoTASScreen extends Screen {
 
     protected void clearAndInit() { clearChildren(); init(); }
     @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        // Avoid expensive in-world blur; use a simple dark panel for responsive rendering on low-end GPUs.
+        context.fill(0, 0, width, height, 0xE610121B);
+        context.fill(width / 2 - 125, 10, width / 2 + 125, height - 10, 0xAA202633);
         context.drawCenteredTextWithShadow(textRenderer, "CHRONOTAS / TAS TOOLKIT", width / 2, 18, 0xFFFFFF);
         String status = ChronoTASClient.recording ? "RECORDING" : ChronoTASClient.playing ? "PLAYING" : "IDLE";
         context.drawCenteredTextWithShadow(textRenderer, "Status: " + status + " | ticks: " + ChronoTASClient.frames.size(),
