@@ -32,7 +32,7 @@ public final class ChronoTASScreen extends Screen {
                 b -> { if (nameField != null) ChronoTASClient.requestedRecordingName = nameField.getText(); ChronoTASClient.toggleRecording(client); clearAndInit(); },
                 leftX, contentY, bw, bh, ChronoTASClient.recording ? 0xFF7A3542 : 0xFF23684B);
         addButton(ChronoTASClient.playing ? "■  Stop replay" : "▶  Play replay",
-                b -> { ChronoTASClient.togglePlayback(client); clearAndInit(); },
+                b -> { ChronoTASClient.togglePlayback(client); if (ChronoTASClient.playing) close(); else clearAndInit(); },
                 leftX + bw + gap, contentY, bw, bh, ChronoTASClient.playing ? 0xFF7A3542 : 0xFF285B91);
         addButton("Replay " + ChronoTASClient.playbackSpeed + "x",
                 b -> { ChronoTASClient.cycleSpeed(client); clearAndInit(); },
