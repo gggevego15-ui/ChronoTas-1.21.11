@@ -44,7 +44,7 @@ public final class ChronoTASVideo {
             Path dir = Path.of("config", "chronotas", "videos");
             Files.createDirectories(dir);
             output = dir.resolve("chronotas-" + System.currentTimeMillis() + ".mp4");
-            queue = new ArrayBlockingQueue<>(90);
+            queue = new ArrayBlockingQueue<>(12);
             droppedFrames = 0;
             lastFrameNanos = 0;
             recording = true;
@@ -53,7 +53,7 @@ public final class ChronoTASVideo {
             encoderThread = new Thread(() -> encode(target, targetQueue), "ChronoTAS-video-encoder");
             encoderThread.setDaemon(true);
             encoderThread.start();
-            ChronoTASClient.sayPublic(client, "Video capture started (MP4, 30 FPS). F4 stops.");
+            ChronoTASClient.sayPublic(client, "Video capture started (MP4, 20 FPS). F4 stops.");
         } catch (IOException e) {
             recording = false;
             ChronoTASClient.sayPublic(client, "Video start failed: " + e.getMessage());
@@ -69,7 +69,7 @@ public final class ChronoTASVideo {
     public static void captureFrame(MinecraftClient client) {
         if (!recording || client == null || client.getWindow() == null) return;
         long now = System.nanoTime();
-        if (lastFrameNanos != 0 && now - lastFrameNanos < 33_333_333L) return;
+        if (lastFrameNanos != 0 && now - lastFrameNanos < 50_000_000L) return;
         lastFrameNanos = now;
         int width = client.getWindow().getFramebufferWidth();
         int height = client.getWindow().getFramebufferHeight();
@@ -112,7 +112,7 @@ public final class ChronoTASVideo {
                 if (image == STOP) break;
                 if (encoder == null) {
                     width = image.getWidth(); height = image.getHeight();
-                    encoder = AWTSequenceEncoder.createSequenceEncoder(target.toFile(), 30);
+                    encoder = AWTSequenceEncoder.createSequenceEncoder(target.toFile(), 20);
                 }
                 if (image.getWidth() != width || image.getHeight() != height) {
                     BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
