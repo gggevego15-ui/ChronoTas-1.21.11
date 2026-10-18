@@ -26,9 +26,13 @@ public final class ChronoTASScreen extends Screen {
                 .dimensions(x, y + 100, 102, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
                 .dimensions(x + 108, y + 100, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Save State (F10)"), b -> ChronoTASClient.saveQuickState(client))
+                .dimensions(x, y + 125, 102, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Restore (F11)"), b -> ChronoTASClient.restoreQuickState(client))
+                .dimensions(x + 108, y + 125, 102, 20).build());
 
         List<String> files = ChronoTASClient.list();
-        int rowY = y + 134, maxRows = Math.max(1, (height - rowY - 16) / 22);
+        int rowY = y + 159, maxRows = Math.max(1, (height - rowY - 16) / 22);
         int start = Math.min(scroll, Math.max(0, files.size() - maxRows));
         for (int i = start; i < Math.min(files.size(), start + maxRows); i++) {
             String file = files.get(i);
@@ -48,7 +52,7 @@ public final class ChronoTASScreen extends Screen {
         String status = ChronoTASClient.recording ? "RECORDING" : ChronoTASClient.playing ? "PLAYING" : "IDLE";
         context.drawCenteredTextWithShadow(textRenderer, "Status: " + status + " | recorded ticks: " + ChronoTASClient.frames.size(),
                 width / 2, 34, 0xB9D7FF);
-        context.drawCenteredTextWithShadow(textRenderer, "F6 Record | F7 Play | F8 Pause | F9 Step | Right Shift Menu",
+        context.drawCenteredTextWithShadow(textRenderer, "F6 Record | F7 Replay | F8 Pause | F9 Step | F10 Save | F11 Restore",
                 width / 2, 48, 0xDDDDDD);
         super.render(context, mouseX, mouseY, delta);
     }
