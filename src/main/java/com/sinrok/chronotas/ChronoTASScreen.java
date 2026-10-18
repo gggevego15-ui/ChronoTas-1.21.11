@@ -16,7 +16,7 @@ public final class ChronoTASScreen extends Screen {
     @Override protected void init() {
         int x = width / 2 - 105, y = height / 2 - 105;
         addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.recording ? "Stop & Save (F6)" : "Start Recording (F6)"),
-                b -> ChronoTASClient.toggleRecording(client)).dimensions(x, y, 210, 20).build());
+                b -> { if (nameField != null) ChronoTASClient.requestedRecordingName = nameField.getText(); ChronoTASClient.toggleRecording(client); clearAndInit(); }).dimensions(x, y, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal(ChronoTASClient.playing ? "Stop Playback (F7)" : "Play Selected / Latest (F7)"),
                 b -> ChronoTASClient.togglePlayback(client)).dimensions(x, y + 24, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Replay speed: " + ChronoTASClient.playbackSpeed + "x (cycle)"),
@@ -40,6 +40,7 @@ public final class ChronoTASScreen extends Screen {
         nameField = new TextFieldWidget(textRenderer, x, y + 168, 210, 20, Text.literal("Replay name"));
         nameField.setMaxLength(48);
         nameField.setText(ChronoTASClient.requestedRecordingName);
+        nameField.setChangedListener(value -> ChronoTASClient.requestedRecordingName = value);
         nameField.setPlaceholder(Text.literal("Enter replay name..."));
         addDrawableChild(nameField);
         addDrawableChild(ButtonWidget.builder(Text.literal("Rename selected replay"), b -> {
