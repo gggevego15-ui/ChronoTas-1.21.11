@@ -176,7 +176,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (names.isEmpty()) { say(c, "No recordings. Press F6 first."); return; }
         String target = selectedReplay != null && names.contains(selectedReplay) ? selectedReplay : names.get(names.size() - 1);
         if (!load(target)) { say(c, "Could not load recording. File may be damaged."); return; }
-        ChronoTASWorldState.restore(c, initialState, recordedBlockChanges);
+        ChronoTASWorldState.restore(c, initialState, Map.of());
         playbackIndex = 0; playing = true; paused = false; speedAccumulator = 0; previousActionStates.clear();
         if (cinematicCamera) { previousPerspective = c.options.getPerspective(); c.options.setPerspective(Perspective.THIRD_PERSON_BACK); }
         say(c, "Restored initial snapshot; playing " + recordingName + ". F7 stops.");
