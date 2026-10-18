@@ -1,14 +1,15 @@
 package com.sinrok.chronotas;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
-import net.minecraft.block.BlockState;
+import com.google.gson.JsonParser;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.block.BlockState;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
@@ -21,7 +22,6 @@ import java.util.UUID;
 
 public final class ChronoTASWorldState {
     public static boolean restoring;
-
     private ChronoTASWorldState() {}
 
     public static Snapshot capture(MinecraftClient client) {
@@ -33,14 +33,12 @@ public final class ChronoTASWorldState {
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
         int maxY = Math.min(client.world.getBottomY() + client.world.getHeight() - 1, center.getY() + 8);
-        for (int x = center.getX() - 8; x <= center.getX() + 8; x++) {
-            for (int y = minY; y <= maxY; y++) {
+        for (int x = center.getX() - 8; x <= center.getX() + 8; x++)
+            for (int y = minY; y <= maxY; y++)
                 for (int z = center.getZ() - 8; z <= center.getZ() + 8; z++) {
                     BlockPos pos = new BlockPos(x, y, z);
                     s.blocks.put(Long.toString(pos.asLong()), encode(client.world.getBlockState(pos)));
                 }
-            }
-        }
         s.entities.addAll(captureEntities(client, 64));
         return s;
     }
@@ -49,11 +47,10 @@ public final class ChronoTASWorldState {
         List<EntityState> result = new ArrayList<>();
         if (client.world == null || client.player == null) return result;
         Box area = new Box(client.player.getBlockPos()).expand(radius);
-        for (Entity e : client.world.getEntitiesByClass(Entity.class, area,
-                entity -> !(entity instanceof PlayerEntity))) {
+        for (Entity e : client.world.getEntitiesByClass(Entity.class, area, entity -> !(entity instanceof PlayerEntity))) {
             EntityState es = new EntityState();
             es.uuid = e.getUuidAsString();
-            es.type = net.minecraft.registry.Registries.ENTITY_TYPE.getId(e.getType()).toString();
+            es.type = Registries.ENTITY_TYPE.getId(e.getType()).toString();
             es.x = e.getX(); es.y = e.getY(); es.z = e.getZ();
             es.vx = e.getVelocity().x; es.vy = e.getVelocity().y; es.vz = e.getVelocity().z;
             es.yaw = e.getYaw(); es.pitch = e.getPitch();
@@ -67,8 +64,20 @@ public final class ChronoTASWorldState {
         if (client.world == null || states == null) return;
         for (EntityState es : states) {
             try {
-                Entity entity = client.world.getEntity(UUID.fromString(es.uuid));
-                if (entity == null || entity instanceof PlayerEntity) continue;
+                UUID uuid = UUID.fromString(es.uuid);
+                Entity entity = client.world.getEntity(uuid);
+                if (entity == null) {
+                    Identifier id = Identifier.tryParse(es.type);
+                    if (id == null) continue;
+                    var type = Registries.ENTITY_TYPE.get(id);
+                    if (type == null) continue;
+                    entity = type.create(client.world, SpawnReason.LOAD);
+                    if (entity == null) continue;
+                    entity.setUuid(uuid);
+                    entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
+                    if (!client.world.spawnEntity(entity)) continue;
+                }
+                if (entity instanceof PlayerEntity) continue;
                 entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
                 entity.setVelocity(es.vx, es.vy, es.vz);
                 if (entity instanceof LivingEntity le && es.health >= 0) le.setHealth(Math.min(es.health, le.getMaxHealth()));
@@ -91,29 +100,20 @@ public final class ChronoTASWorldState {
         }
         restoring = true;
         try {
-            for (Map.Entry<String, String> e : snapshot.blocks.entrySet()) {
-                restoreBlock(client.world, e.getKey(), e.getValue());
-            }
-            if (changed != null) {
-                for (Map.Entry<String, String> e : changed.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
-            }
-            client.player.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ,
-                    snapshot.playerYaw, snapshot.playerPitch);
+            for (Map.Entry<String, String> e : snapshot.blocks.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
+            if (changed != null) for (Map.Entry<String, String> e : changed.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
+            client.player.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ, snapshot.playerYaw, snapshot.playerPitch);
             restoreEntities(client, snapshot.entities);
-        } finally {
-            restoring = false;
-        }
+        } finally { restoring = false; }
     }
 
     private static void restoreBlock(World world, String packed, String encoded) {
         try {
             BlockPos pos = BlockPos.fromLong(Long.parseLong(packed));
-            BlockState state = BlockState.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(encoded))
-                    .result().orElse(null);
+            BlockState state = BlockState.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(encoded)).result().orElse(null);
             if (state != null) world.setBlockState(pos, state, 3);
         } catch (Exception ignored) { }
     }
-
     private static String encode(BlockState state) {
         try { return ChronoTASClient.GSON.toJson(BlockState.CODEC.encodeStart(JsonOps.INSTANCE, state).getOrThrow()); }
         catch (Exception e) { return "{\"Name\":\"minecraft:air\"}"; }

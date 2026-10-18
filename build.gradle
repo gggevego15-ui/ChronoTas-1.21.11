@@ -7,11 +7,15 @@ version = project.mod_version
 group = project.maven_group
 base { archivesName = project.archives_base_name }
 
+repositories { mavenCentral() }
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    include(implementation("org.jcodec:jcodec:0.2.5"))
+    include(implementation("org.jcodec:jcodec-javase:0.2.5"))
 }
 
 processResources {
