@@ -7,6 +7,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
@@ -30,6 +31,8 @@ public final class ChronoTASWorldState {
         s.worldKey = client.world.getRegistryKey().getValue().toString();
         s.playerX = client.player.getX(); s.playerY = client.player.getY(); s.playerZ = client.player.getZ();
         s.playerYaw = client.player.getYaw(); s.playerPitch = client.player.getPitch();
+        s.inventory = captureInventory(client);
+        s.selectedSlot = client.player.getInventory().selectedSlot;
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
         int maxY = Math.min(client.world.getBottomY() + client.world.getHeight() - 1, center.getY() + 8);
@@ -57,6 +60,8 @@ public final class ChronoTASWorldState {
             es.vx = e.getVelocity().x; es.vy = e.getVelocity().y; es.vz = e.getVelocity().z;
             es.yaw = e.getYaw(); es.pitch = e.getPitch();
             es.health = e instanceof LivingEntity le ? le.getHealth() : -1;
+            es.hurtTime = e instanceof LivingEntity le ? le.hurtTime : 0;
+            es.maxHurtTime = e instanceof LivingEntity le ? le.maxHurtTime : 0;
             result.add(es);
         }
         return result;
@@ -82,9 +87,56 @@ public final class ChronoTASWorldState {
                 if (entity instanceof PlayerEntity) continue;
                 entity.refreshPositionAndAngles(es.x, es.y, es.z, es.yaw, es.pitch);
                 entity.setVelocity(es.vx, es.vy, es.vz);
-                if (entity instanceof LivingEntity le && es.health >= 0) le.setHealth(Math.min(es.health, le.getMaxHealth()));
+                if (entity instanceof LivingEntity le) {
+                    if (es.health >= 0) le.setHealth(Math.min(es.health, le.getMaxHealth()));
+                    le.hurtTime = es.hurtTime;
+                    le.maxHurtTime = es.maxHurtTime;
+                }
             } catch (RuntimeException ignored) { }
         }
+    }
+
+    public static List<String> captureInventory(MinecraftClient client) {
+        List<String> result = new ArrayList<>();
+        if (client.player == null) return result;
+        for (int i = 0; i < client.player.getInventory().size(); i++) {
+            try {
+                result.add(ChronoTASClient.GSON.toJson(ItemStack.CODEC.encodeStart(JsonOps.INSTANCE,
+                        client.player.getInventory().getStack(i)).getOrThrow()));
+            } catch (Exception e) {
+                result.add("{}");
+            }
+        }
+        return result;
+    }
+
+    public static void restoreInventory(MinecraftClient client, List<String> inventory, int selectedSlot) {
+        if (client.player == null || inventory == null || inventory.isEmpty()) return;
+        var playerInventory = client.player.getInventory();
+        int count = Math.min(playerInventory.size(), inventory.size());
+        for (int i = 0; i < count; i++) {
+            try {
+                ItemStack stack = ItemStack.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(inventory.get(i)))
+                        .result().orElse(ItemStack.EMPTY);
+                playerInventory.setStack(i, stack);
+            } catch (Exception ignored) { }
+        }
+        if (selectedSlot >= 0 && selectedSlot < 9) playerInventory.selectedSlot = selectedSlot;
+    }
+
+    public static void restoreFrameBlocks(MinecraftClient client, Map<String, String> changes) {
+        if (client.world == null || changes == null || changes.isEmpty()) return;
+        restoring = true;
+        try {
+            for (Map.Entry<String, String> e : changes.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
+        } finally { restoring = false; }
+    }
+
+    public static void recordBlockAfterChange(World world, BlockPos pos, boolean changed) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!changed || restoring || !ChronoTASClient.recording || client.world != world) return;
+        String key = Long.toString(pos.asLong());
+        ChronoTASClient.currentTickBlockChanges.put(key, encode(world.getBlockState(pos)));
     }
 
     public static void recordBlockBeforeChange(World world, BlockPos pos) {
@@ -126,11 +178,14 @@ public final class ChronoTASWorldState {
         public double playerX, playerY, playerZ;
         public float playerYaw, playerPitch;
         public Map<String, String> blocks = new LinkedHashMap<>();
+        public List<String> inventory = new ArrayList<>();
+        public int selectedSlot;
         public List<EntityState> entities = new ArrayList<>();
     }
     public static final class EntityState {
         public String uuid, type;
         public double x, y, z, vx, vy, vz;
         public float yaw, pitch, health;
+        public int hurtTime, maxHurtTime;
     }
 }
