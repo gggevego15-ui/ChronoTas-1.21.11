@@ -221,13 +221,45 @@ public final class ChronoTASClient implements ClientModInitializer {
         set(c.options.dropKey, false); set(c.options.inventoryKey, false);
         for (KeyBinding k : c.options.hotbarKeys) set(k, false);
     }
+    private static String safeName(String raw) {
+        String value = raw == null ? "" : raw.trim().replaceAll("[^a-zA-Z0-9._ -]", "_")
+                .replaceAll("[. ]+$", "").replaceAll("\\s+", "_");
+        if (value.length() > 48) value = value.substring(0, 48);
+        return value.isBlank() ? "My_TAS" : value;
+    }
+    private static String uniqueRecordingName(String raw) {
+        String base = safeName(raw), candidate = base;
+        int suffix = 2;
+        while (Files.exists(RECORDINGS.resolve(candidate + ".json"))) candidate = base + "-" + suffix++;
+        return candidate;
+    }
+    public static boolean renameRecording(String oldFile, String newName) {
+        try {
+            String clean = safeName(newName);
+            Path oldPath = RECORDINGS.resolve(oldFile).normalize();
+            if (!oldPath.getParent().equals(RECORDINGS.normalize()) || !oldPath.getFileName().toString().endsWith(".json")
+                    || !Files.isRegularFile(oldPath)) return false;
+            Path newPath = RECORDINGS.resolve(clean + ".json").normalize();
+            if (!newPath.equals(oldPath) && Files.exists(newPath)) return false;
+            Recording r = GSON.fromJson(Files.readString(oldPath, StandardCharsets.UTF_8), Recording.class);
+            if (r == null || r.frames == null) return false;
+            r.name = clean;
+            Files.writeString(newPath, GSON.toJson(r), StandardCharsets.UTF_8);
+            if (!newPath.equals(oldPath)) Files.delete(oldPath);
+            if (oldFile.equals(selectedReplay)) selectedReplay = newPath.getFileName().toString();
+            if (oldFile.equals(recordingName + ".json")) recordingName = clean;
+            requestedRecordingName = clean;
+            return true;
+        } catch (Exception e) { return false; }
+    }
     private static void save() {
         try {
             Files.createDirectories(RECORDINGS);
             Recording r = new Recording(); r.name = recordingName; r.minecraftVersion = "1.21.11";
             r.frames = new ArrayList<>(frames); r.initialState = initialState;
             r.changedBlocks = new LinkedHashMap<>(recordedBlockChanges);
-            Files.writeString(RECORDINGS.resolve(recordingName.replaceAll("[^a-zA-Z0-9._-]", "_") + ".json"),
+            Path destination = RECORDINGS.resolve(safeName(recordingName) + ".json");
+            Files.writeString(destination,
                     GSON.toJson(r), StandardCharsets.UTF_8);
         } catch (IOException e) { e.printStackTrace(); }
     }
