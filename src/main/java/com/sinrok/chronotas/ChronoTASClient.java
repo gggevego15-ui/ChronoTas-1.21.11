@@ -15,32 +15,40 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ChronoTASClient implements ClientModInitializer {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final Path RECORDINGS = Path.of("config", "chronotas", "recordings");
+    public static final Path STATES = Path.of("config", "chronotas", "states");
     public static boolean paused, recording, playing;
     public static int stepTicks, playbackIndex;
     public static String recordingName = "run";
     public static final List<Frame> frames = new ArrayList<>();
-    private static boolean shiftWasDown, f6WasDown, f7WasDown;
+    public static ChronoTASWorldState.Snapshot initialState;
+    public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
+    private static boolean shiftWasDown, f6WasDown, f7WasDown, f10WasDown, f11WasDown;
 
     @Override public void onInitializeClient() {
-        try { Files.createDirectories(RECORDINGS); } catch (IOException e) { e.printStackTrace(); }
+        try { Files.createDirectories(RECORDINGS); Files.createDirectories(STATES); } catch (IOException e) { e.printStackTrace(); }
         ClientTickEvents.START_CLIENT_TICK.register(ChronoTASClient::startTick);
         ClientTickEvents.END_CLIENT_TICK.register(ChronoTASClient::endTick);
-        System.out.println("[ChronoTAS] Right Shift menu | F6 record | F7 playback | F8 pause | F9 step");
+        System.out.println("[ChronoTAS] Right Shift menu | F6 record | F7 playback | F8 pause | F9 step | F10 save state | F11 restore state");
     }
 
     private static boolean key(MinecraftClient c, int code) { return InputUtil.isKeyPressed(c.getWindow(), code); }
 
     private static void startTick(MinecraftClient c) {
         boolean shift = key(c, GLFW.GLFW_KEY_RIGHT_SHIFT), f6 = key(c, GLFW.GLFW_KEY_F6), f7 = key(c, GLFW.GLFW_KEY_F7);
+        boolean f10 = key(c, GLFW.GLFW_KEY_F10), f11 = key(c, GLFW.GLFW_KEY_F11);
         if (shift && !shiftWasDown && c.currentScreen == null) c.setScreen(new ChronoTASScreen());
         if (f6 && !f6WasDown) toggleRecording(c);
         if (f7 && !f7WasDown) togglePlayback(c);
-        shiftWasDown = shift; f6WasDown = f6; f7WasDown = f7;
+        if (f10 && !f10WasDown) saveQuickState(c);
+        if (f11 && !f11WasDown) restoreQuickState(c);
+        shiftWasDown = shift; f6WasDown = f6; f7WasDown = f7; f10WasDown = f10; f11WasDown = f11;
         if (playing && c.player != null) {
             if (playbackIndex >= frames.size()) stopPlayback(c, "Playback finished.");
             else apply(c, frames.get(playbackIndex));
@@ -54,11 +62,14 @@ public final class ChronoTASClient implements ClientModInitializer {
 
     public static void toggleRecording(MinecraftClient c) {
         if (recording) {
-            recording = false; save(); say(c, "Saved " + recordingName + " (" + frames.size() + " ticks)."); return;
+            recording = false; save(); say(c, "Saved " + recordingName + " (" + frames.size() + " ticks).");
+            return;
         }
         if (playing) stopPlayback(c, "Playback stopped.");
-        frames.clear(); playbackIndex = 0; recordingName = "run-" + System.currentTimeMillis(); recording = true;
-        say(c, "Recording started. Press F6 again to save.");
+        frames.clear(); playbackIndex = 0; recordedBlockChanges.clear();
+        initialState = ChronoTASWorldState.capture(c);
+        recordingName = "run-" + System.currentTimeMillis(); recording = true;
+        say(c, "Recording started with world snapshot. F6 again saves inputs + block changes.");
     }
 
     public static void togglePlayback(MinecraftClient c) {
@@ -67,12 +78,33 @@ public final class ChronoTASClient implements ClientModInitializer {
         List<String> names = list();
         if (names.isEmpty()) { say(c, "No recordings. Press F6 first."); return; }
         if (!load(names.get(names.size() - 1))) { say(c, "Could not load recording."); return; }
+        ChronoTASWorldState.restore(c, initialState, recordedBlockChanges);
         playbackIndex = 0; playing = true; paused = false;
-        say(c, "Playing " + recordingName + ". F7 stops.");
+        say(c, "Restored initial snapshot; playing " + recordingName + ". F7 stops.");
     }
 
     public static void stopPlayback(MinecraftClient c, String text) {
         playing = false; release(c); say(c, text);
+    }
+
+    public static void saveQuickState(MinecraftClient c) {
+        ChronoTASWorldState.Snapshot snapshot = ChronoTASWorldState.capture(c);
+        if (snapshot == null) { say(c, "Load a world before saving a state."); return; }
+        try {
+            Files.createDirectories(STATES);
+            Files.writeString(STATES.resolve("quick-state.json"), GSON.toJson(snapshot), StandardCharsets.UTF_8);
+            say(c, "Quick state saved (nearby blocks + entity/player positions).");
+        } catch (IOException e) { say(c, "Could not save state: " + e.getMessage()); }
+    }
+
+    public static void restoreQuickState(MinecraftClient c) {
+        Path file = STATES.resolve("quick-state.json");
+        try {
+            if (!Files.isRegularFile(file)) { say(c, "No quick state. Press F10 first."); return; }
+            var snapshot = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), ChronoTASWorldState.Snapshot.class);
+            ChronoTASWorldState.restore(c, snapshot, Map.of());
+            say(c, "Quick state restored.");
+        } catch (Exception e) { say(c, "Could not restore state: " + e.getMessage()); }
     }
 
     private static void set(KeyBinding k, boolean down) { k.setPressed(down); }
@@ -98,7 +130,9 @@ public final class ChronoTASClient implements ClientModInitializer {
     private static void save() {
         try {
             Files.createDirectories(RECORDINGS);
-            Recording r = new Recording(); r.name = recordingName; r.minecraftVersion = "1.21.11"; r.frames = new ArrayList<>(frames);
+            Recording r = new Recording(); r.name = recordingName; r.minecraftVersion = "1.21.11";
+            r.frames = new ArrayList<>(frames); r.initialState = initialState;
+            r.changedBlocks = new LinkedHashMap<>(recordedBlockChanges);
             Files.writeString(RECORDINGS.resolve(recordingName.replaceAll("[^a-zA-Z0-9._-]", "_") + ".json"),
                     GSON.toJson(r), StandardCharsets.UTF_8);
         } catch (IOException e) { e.printStackTrace(); }
@@ -114,14 +148,21 @@ public final class ChronoTASClient implements ClientModInitializer {
             if (!file.getParent().equals(RECORDINGS.normalize()) || !Files.isRegularFile(file)) return false;
             Recording r = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), Recording.class);
             if (r == null || r.frames == null || r.frames.isEmpty()) return false;
-            frames.clear(); frames.addAll(r.frames); recordingName = r.name == null ? name : r.name; playbackIndex = 0; return true;
+            frames.clear(); frames.addAll(r.frames); recordingName = r.name == null ? name : r.name;
+            initialState = r.initialState; recordedBlockChanges = r.changedBlocks == null ? new LinkedHashMap<>() : new LinkedHashMap<>(r.changedBlocks);
+            playbackIndex = 0; return true;
         } catch (Exception e) { return false; }
     }
     private static void say(MinecraftClient c, String s) {
         if (c.player != null) c.player.sendMessage(Text.literal("[ChronoTAS] " + s), false);
         else System.out.println("[ChronoTAS] " + s);
     }
-    public static final class Recording { public String name, minecraftVersion; public List<Frame> frames = new ArrayList<>(); }
+    public static final class Recording {
+        public String name, minecraftVersion;
+        public List<Frame> frames = new ArrayList<>();
+        public ChronoTASWorldState.Snapshot initialState;
+        public Map<String, String> changedBlocks = new LinkedHashMap<>();
+    }
     public static final class Frame {
         public boolean forward, back, left, right, jump, sprint, sneak;
         public float yaw, pitch; public double x, y, z;
