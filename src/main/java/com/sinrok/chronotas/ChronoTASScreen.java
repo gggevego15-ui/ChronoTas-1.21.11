@@ -40,7 +40,7 @@ public final class ChronoTASScreen extends Screen {
         }
     }
 
-    private void clearAndInit() { clearChildren(); init(); }
+    protected void clearAndInit() { clearChildren(); init(); }
 
     @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
