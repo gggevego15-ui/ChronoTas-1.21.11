@@ -43,24 +43,29 @@ public final class ChronoTASClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(ChronoTASClient::endTick);
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
             MinecraftClient c = MinecraftClient.getInstance();
-            ChronoTASVideo.captureFrame(c);
-            if (c.player == null || c.world == null) return;
+            if (c.player == null || c.world == null) {
+                ChronoTASVideo.captureFrame(c);
+                return;
+            }
             int x = 8, y = 8;
-            String status = playing ? "TAS " + formatTime(playbackIndex) + " / " + formatTime(frames.size())
-                    + "  " + String.format(java.util.Locale.ROOT, "%.2fx", playbackSpeed)
-                    : recording ? "TAS REC  " + frames.size() + " ticks" : "CHRONOTAS";
-            context.fill(x - 4, y - 4, x + 204, y + 133, 0xC910121B);
-            context.fill(x - 4, y - 4, x + 204, y + 15, 0xEE263449);
+            String timer = playing ? formatTime(playbackIndex) + " / " + formatTime(frames.size())
+                    : recording ? formatTime(frames.size()) : "00:00.00";
+            String status = playing ? "REPLAY  " + String.format(java.util.Locale.ROOT, "%.2fx", playbackSpeed)
+                    : recording ? "● RECORDING" : "CHRONOTAS";
+            context.fill(x - 4, y - 4, x + 204, y + 152, 0xC910121B);
+            context.fill(x - 4, y - 4, x + 204, y + 15, playing ? 0xEE1F6546 : recording ? 0xEE7A3038 : 0xEE263449);
             context.drawText(c.textRenderer, Text.literal(status), x, y, playing ? 0xFF8DFFB0 : recording ? 0xFFFF7777 : 0xFFFFFFFF, true);
-            context.drawText(c.textRenderer, Text.literal("MOD HOTKEYS"), x, y + 21, 0xFF9CCBFF, false);
-            context.drawText(c.textRenderer, Text.literal("F4   MP4 video"), x, y + 35, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F6   Record / save TAS"), x, y + 47, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F7   Play / stop replay"), x, y + 59, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F8   Pause / resume"), x, y + 71, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F9   Step one tick"), x, y + 83, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F10  Save state"), x, y + 95, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("F11  Restore state"), x, y + 107, 0xFFFFFFFF, false);
-            context.drawText(c.textRenderer, Text.literal("RShift  Open menu"), x, y + 119, 0xFFB8C7D9, false);
+            context.drawText(c.textRenderer, Text.literal(timer), x, y + 20, 0xFFFFFFFF, true);
+            context.drawText(c.textRenderer, Text.literal(playing ? "ELAPSED / TOTAL" : recording ? "RECORDING TIME" : "TAS TIMER"), x, y + 34, 0xFF9CCBFF, false);
+            context.drawText(c.textRenderer, Text.literal("MOD HOTKEYS"), x, y + 49, 0xFF9CCBFF, false);
+            context.drawText(c.textRenderer, Text.literal("F4   MP4 video"), x, y + 63, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F6   Record / save TAS"), x, y + 75, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F7   Play / stop replay"), x, y + 87, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F8   Pause / resume"), x, y + 99, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F9   Step one tick"), x, y + 111, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F10  Save state"), x, y + 123, 0xFFFFFFFF, false);
+            context.drawText(c.textRenderer, Text.literal("F11  Restore state"), x, y + 135, 0xFFFFFFFF, false);
+            ChronoTASVideo.captureFrame(c);
         });
         System.out.println("[ChronoTAS] Right Shift menu | F4 video | F6 record | F7 playback | F8 pause | F9 step | F10 save | F11 restore");
     }
