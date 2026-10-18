@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.text.Text;
@@ -244,7 +245,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         queueActionEdge(c.options.pickItemKey, f.pickItem, "pick");
         if (f.screenClicks != null && c.currentScreen instanceof HandledScreen<?> screen) {
             for (ScreenClick click : f.screenClicks) {
-                try { screen.mouseClicked(click.x, click.y, click.button); }
+                try { screen.mouseClicked(new Click(click.x, click.y, click.button), false); }
                 catch (RuntimeException ignored) { }
             }
         }
@@ -362,7 +363,7 @@ public final class ChronoTASClient implements ClientModInitializer {
     private static void queueActionEdge(KeyBinding binding, boolean down, String key) {
         boolean previous = previousActionStates.getOrDefault(key, false);
         if (down && !previous) {
-            try { KeyBinding.onKeyPressed(binding.getBoundKey()); } catch (RuntimeException ignored) { }
+            try { KeyBinding.onKeyPressed(binding.getDefaultKey()); } catch (RuntimeException ignored) { }
         }
         previousActionStates.put(key, down);
     }
