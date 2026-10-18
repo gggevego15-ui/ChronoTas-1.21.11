@@ -48,6 +48,8 @@ public final class ChronoTASWorldState {
         if (client.world == null || client.player == null) return result;
         Box area = new Box(client.player.getBlockPos()).expand(radius);
         for (Entity e : client.world.getEntitiesByClass(Entity.class, area, entity -> !(entity instanceof PlayerEntity))) {
+            // Keep recording bounded in mob-heavy areas to avoid huge TAS files and memory spikes.
+            if (result.size() >= 64) break;
             EntityState es = new EntityState();
             es.uuid = e.getUuidAsString();
             es.type = Registries.ENTITY_TYPE.getId(e.getType()).toString();
