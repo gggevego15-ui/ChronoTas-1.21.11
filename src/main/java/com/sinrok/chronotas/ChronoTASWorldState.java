@@ -157,6 +157,7 @@ public final class ChronoTASWorldState {
             for (Map.Entry<String, String> e : snapshot.blocks.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
             if (changed != null) for (Map.Entry<String, String> e : changed.entrySet()) restoreBlock(client.world, e.getKey(), e.getValue());
             client.player.refreshPositionAndAngles(snapshot.playerX, snapshot.playerY, snapshot.playerZ, snapshot.playerYaw, snapshot.playerPitch);
+            restoreInventory(client, snapshot.inventory, snapshot.selectedSlot);
             restoreEntities(client, snapshot.entities);
         } finally { restoring = false; }
     }
