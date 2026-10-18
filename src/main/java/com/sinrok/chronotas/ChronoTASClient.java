@@ -28,6 +28,8 @@ public final class ChronoTASClient implements ClientModInitializer {
     public static int stepTicks, playbackIndex;
     public static double playbackSpeed = 1.0, speedAccumulator;
     public static String recordingName = "run";
+    public static String requestedRecordingName = "My TAS";
+    public static String selectedReplay = "";
     public static final List<Frame> frames = new ArrayList<>();
     public static ChronoTASWorldState.Snapshot initialState;
     public static Map<String, String> recordedBlockChanges = new LinkedHashMap<>();
@@ -131,7 +133,9 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (playing) stopPlayback(c, "Playback stopped.");
         frames.clear(); playbackIndex = 0; recordedBlockChanges.clear();
         initialState = ChronoTASWorldState.capture(c);
-        recordingName = "run-" + System.currentTimeMillis(); recording = true;
+        recordingName = uniqueRecordingName(requestedRecordingName);
+        requestedRecordingName = recordingName;
+        recording = true;
         say(c, "Recording started with world snapshot. F6 again saves inputs + block changes.");
     }
 
@@ -140,7 +144,8 @@ public final class ChronoTASClient implements ClientModInitializer {
         if (recording) { recording = false; save(); }
         List<String> names = list();
         if (names.isEmpty()) { say(c, "No recordings. Press F6 first."); return; }
-        if (!load(names.get(names.size() - 1))) { say(c, "Could not load recording."); return; }
+        String target = selectedReplay != null && names.contains(selectedReplay) ? selectedReplay : names.get(names.size() - 1);
+        if (!load(target)) { say(c, "Could not load recording. File may be damaged."); return; }
         ChronoTASWorldState.restore(c, initialState, recordedBlockChanges);
         playbackIndex = 0; playing = true; paused = false; speedAccumulator = 0;
         say(c, "Restored initial snapshot; playing " + recordingName + ". F7 stops.");
