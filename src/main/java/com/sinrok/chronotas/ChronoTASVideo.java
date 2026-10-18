@@ -6,6 +6,7 @@ import org.lwjgl.opengl.GL11;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -23,6 +24,8 @@ public final class ChronoTASVideo {
     private static Thread encoderThread;
     private static long lastFrameNanos;
     private static int droppedFrames;
+    private static ByteBuffer pixelBuffer;
+    private static int bufferWidth, bufferHeight;
 
     private ChronoTASVideo() {}
 
@@ -72,17 +75,24 @@ public final class ChronoTASVideo {
         int height = client.getWindow().getFramebufferHeight();
         if (width < 2 || height < 2) return;
         try {
-            ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
-            GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+            int bytes = width * height * 4;
+            if (pixelBuffer == null || bufferWidth != width || bufferHeight != height) {
+                pixelBuffer = ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder());
+                bufferWidth = width;
+                bufferHeight = height;
+            }
+            pixelBuffer.clear();
+            GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixelBuffer);
             BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            int[] rgb = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
             for (int y = 0; y < height; y++) {
-                int sourceY = height - 1 - y;
-                for (int x = 0; x < width; x++) {
-                    int i = (sourceY * width + x) * 4;
-                    int r = pixels.get(i) & 255;
-                    int g = pixels.get(i + 1) & 255;
-                    int b = pixels.get(i + 2) & 255;
-                    image.setRGB(x, y, (r << 16) | (g << 8) | b);
+                int sourceRow = (height - 1 - y) * width * 4;
+                int targetRow = y * width;
+                for (int x = 0, i = sourceRow; x < width; x++, i += 4) {
+                    int r = pixelBuffer.get(i) & 255;
+                    int g = pixelBuffer.get(i + 1) & 255;
+                    int b = pixelBuffer.get(i + 2) & 255;
+                    rgb[targetRow + x] = (r << 16) | (g << 8) | b;
                 }
             }
             if (!queue.offer(image)) droppedFrames++;
