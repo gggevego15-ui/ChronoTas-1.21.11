@@ -242,7 +242,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         set(c.options.jumpKey, f.jump); set(c.options.sprintKey, f.sprint); set(c.options.sneakKey, f.sneak);
         set(c.options.attackKey, f.attack); set(c.options.useKey, f.use);
         set(c.options.pickItemKey, f.pickItem); set(c.options.dropKey, f.drop);
-        set(c.options.inventoryKey, f.inventory);
+        set(c.options.inventoryKey, f.inventoryKeyPressed);
         for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) set(c.options.hotbarKeys[i], f.hotbar[i]);
         ChronoTASWorldState.restoreEntities(c, f.entities);
         c.player.setYaw(f.yaw); c.player.setPitch(f.pitch);
@@ -255,7 +255,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.sneak = c.options.sneakKey.isPressed();
         f.attack = c.options.attackKey.isPressed(); f.use = c.options.useKey.isPressed();
         f.pickItem = c.options.pickItemKey.isPressed(); f.drop = c.options.dropKey.isPressed();
-        f.inventory = c.options.inventoryKey.isPressed();
+        f.inventoryKeyPressed = c.options.inventoryKey.isPressed();
         for (int i = 0; i < Math.min(c.options.hotbarKeys.length, f.hotbar.length); i++) f.hotbar[i] = c.options.hotbarKeys[i].isPressed();
         f.yaw = c.player.getYaw(); f.pitch = c.player.getPitch();
         f.x = c.player.getX(); f.y = c.player.getY(); f.z = c.player.getZ();
@@ -263,7 +263,7 @@ public final class ChronoTASClient implements ClientModInitializer {
         f.playerVy = c.player.getVelocity().y;
         f.playerVz = c.player.getVelocity().z;
         f.inventory = ChronoTASWorldState.captureInventory(c);
-        f.selectedSlot = c.player.getInventory().selectedSlot;
+        f.selectedSlot = c.player.getInventory().getSelectedSlot();
         f.blockChanges = new LinkedHashMap<>(currentTickBlockChanges);
         currentTickBlockChanges.clear();
         // Store only entities present in this frame. Carrying every entity ever seen
@@ -351,7 +351,7 @@ public final class ChronoTASClient implements ClientModInitializer {
     }
     public static final class Frame {
         public boolean forward, back, left, right, jump, sprint, sneak;
-        public boolean attack, use, pickItem, drop, inventory;
+        public boolean attack, use, pickItem, drop, inventoryKeyPressed;
         public boolean[] hotbar = new boolean[9];
         public List<ChronoTASWorldState.EntityState> entities = new ArrayList<>();
         public float yaw, pitch; public double x, y, z;
