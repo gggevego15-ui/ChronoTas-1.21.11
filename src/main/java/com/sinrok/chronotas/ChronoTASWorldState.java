@@ -32,7 +32,7 @@ public final class ChronoTASWorldState {
         s.playerX = client.player.getX(); s.playerY = client.player.getY(); s.playerZ = client.player.getZ();
         s.playerYaw = client.player.getYaw(); s.playerPitch = client.player.getPitch();
         s.inventory = captureInventory(client);
-        s.selectedSlot = client.player.getInventory().selectedSlot;
+        s.selectedSlot = client.player.getInventory().getSelectedSlot();
         BlockPos center = client.player.getBlockPos();
         int minY = Math.max(client.world.getBottomY(), center.getY() - 8);
         int maxY = Math.min(client.world.getBottomY() + client.world.getHeight() - 1, center.getY() + 8);
@@ -121,7 +121,7 @@ public final class ChronoTASWorldState {
                 playerInventory.setStack(i, stack);
             } catch (Exception ignored) { }
         }
-        if (selectedSlot >= 0 && selectedSlot < 9) playerInventory.selectedSlot = selectedSlot;
+        if (selectedSlot >= 0 && selectedSlot < 9) playerInventory.setSelectedSlot(selectedSlot);
     }
 
     public static void restoreFrameBlocks(MinecraftClient client, Map<String, String> changes) {
