@@ -261,6 +261,7 @@ public final class ChronoTASClient implements ClientModInitializer {
             Path destination = RECORDINGS.resolve(safeName(recordingName) + ".json");
             Files.writeString(destination,
                     GSON.toJson(r), StandardCharsets.UTF_8);
+            selectedReplay = destination.getFileName().toString();
         } catch (IOException e) { e.printStackTrace(); }
     }
     public static List<String> list() {
