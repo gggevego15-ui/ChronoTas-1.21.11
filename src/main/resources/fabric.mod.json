@@ -4,16 +4,30 @@
   "version": "${version}",
   "name": "ChronoTAS",
   "description": "Tick-aware input recording and playback tools for Minecraft TAS practice.",
-  "authors": ["s1nnrockk"],
-  "contact": { "sources": "https://github.com/gggevego15-ui/ChronoTas-1.21.11" },
+  "authors": [
+    "s1nnrockk"
+  ],
+  "contact": {
+    "sources": "https://github.com/gggevego15-ui/ChronoTas-1.21.11"
+  },
   "license": "MIT",
   "environment": "client",
-  "entrypoints": { "client": ["com.sinrok.chronotas.ChronoTASClient"] },
-  "mixins": [{ "config": "chronotas.mixins.json", "environment": "client" }],
+  "entrypoints": {
+    "client": [
+      "com.sinrok.chronotas.ChronoTASClient"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "chronotas.mixins.json",
+      "environment": "client"
+    }
+  ],
   "depends": {
     "fabricloader": ">=0.18.0",
     "minecraft": "~1.21.11",
     "java": ">=21",
     "fabric-api": "*"
-  }
+  },
+  "icon": "aicreate-1792676788655.png"
 }
